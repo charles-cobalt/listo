@@ -233,8 +233,8 @@ function draw(top){document.querySelectorAll('nav button').forEach(b=>b.classLis
  const v=$('#view'),y=top?0:scrollY;
  if(page==='sum')drawSum(v);else if(page==='components')drawComponents(v);else drawSettings(v);
  scrollTo(0,y)}
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';edP=null;clraOpen=false;clraTxt='';pcAsk=false;draw(true)});
-$('#home').onclick=()=>{page='sum';note='';clraOpen=false;clraTxt='';pcAsk=false;draw(true)};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';clraOpen=false;clraTxt='';draw(true)});
+$('#home').onclick=()=>{page='sum';note='';clraOpen=false;clraTxt='';draw(true)};
 (function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}migrate()})();
 onAuthStateChanged(auth,u=>{user=u;if(unsub){unsub();unsub=null}
  if(u){switchOwner(u.uid);unsub=onSnapshot(doc(db,'users',u.uid),s=>{if(!s.metadata.hasPendingWrites)schedPush(50)},e=>{msg='Sync unavailable: '+e.code;if(page==='settings')draw()});schedPush(50)}
