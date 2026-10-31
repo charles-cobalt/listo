@@ -150,7 +150,7 @@ function loadOwner(o){const s=jl(localStorage.getItem(OWNP+(o||'anon')));if(s){c
 function switchOwner(n){if(n===OWNER)return;
  const had=localStorage.getItem(OWNP+(n||'anon'));
  const linked=localStorage.getItem(LK);
- if(OWNER===''&&n!==''&&!had&&!linked){stashOwner('');SY=freshSY()}
+ if(OWNER===''&&n!==''&&!had&&!linked){saveData();saveSY()}
  else{stashOwner(OWNER);loadOwner(n)}
  OWNER=n;localStorage.setItem(ONK,OWNER);if(n)localStorage.setItem(LK,'1')}
 ['visibilitychange','focus','pageshow','online'].forEach(ev=>addEventListener(ev,()=>{if(user&&!document.hidden)schedPush(400)}));
