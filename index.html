@@ -160,7 +160,7 @@ function switchOwner(n){if(n===OWNER)return;
 /*DATA*/
 const normName=s=>String(s||'').trim();
 function presetItems(p){if(Array.isArray(p.items))return p.items;return (p.ids||[]).map(id=>{const c=comps.find(c=>c.id===id);return c?c.name:null}).filter(Boolean)}
-function migrate(){let ch=false;presets.forEach(p=>{if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}});if(comps.length){comps.forEach(c=>{if(!presets.some(p=>p.id==='mig-'+c.id))presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
+function migrate(){let ch=false;presets.forEach(p=>{if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}});if(comps.length){comps.forEach(c=>{const ex=presets.find(p=>p.id==='mig-'+c.id);if(ex){if(!ex.items.some(n=>n.toLowerCase()===c.name.toLowerCase()))ex.items.push(c.name)}else presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
 function addToSum(name){name=normName(name);if(!name)return;const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ex){if(ex.done){ex.done=false;note='Back on the list.'}else note='Already in Sum.'}else{sum.push({id:uid(),name,done:false,at:Date.now()});note=''}persist()}
 /*DRAW*/
 const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
