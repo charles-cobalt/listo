@@ -230,12 +230,12 @@ function drawSettings(v){const th=theme();let acct;
  const rb=$('#r-bk');if(rb)rb.onclick=()=>{dlFile('listo-backup_'+new Date().toISOString().slice(0,10)+'.json',backupFile(),'application/json');rnote='Backup file downloaded.';draw()};
  const rt=$('#rtxt');if(rt)rt.oninput=()=>{rtxt=rt.value;const ok=rchk&&rtxt.trim().toUpperCase()==='RESET',b=$('#rgo');if(b){b.classList.toggle('sec',!ok);b.style.opacity=ok?'':'.4'}};
  const rg=$('#rgo');if(rg)rg.onclick=()=>{if(rchk&&rtxt.trim().toUpperCase()==='RESET'){comps=[];presets=[];sum=[];localStorage.setItem(RSK,String(Date.now()));persist();rstOpen=false;rchk=false;rtxt='';rnote='Account reset. Everything is empty.'}else rnote='Tick the box and type RESET first.';draw()}}
-function draw(){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===page));
- const v=$('#view');
+function draw(top){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===page));
+ const v=$('#view'),y=top?0:scrollY;
  if(page==='sum')drawSum(v);else if(page==='components')drawComponents(v);else drawSettings(v);
- scrollTo(0,0)}
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';edC='';edP=null;draw()});
-$('#home').onclick=()=>{page='sum';note='';draw();scrollTo(0,0)};
+ scrollTo(0,y)}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';edC='';edP=null;draw(true)});
+$('#home').onclick=()=>{page='sum';note='';draw(true)};
 (function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}})();
 onAuthStateChanged(auth,u=>{user=u;if(unsub){unsub();unsub=null}
  if(u){switchOwner(u.uid);unsub=onSnapshot(doc(db,'users',u.uid),s=>{if(!s.metadata.hasPendingWrites)schedPush(50)},e=>{msg='Sync unavailable: '+e.code;if(page==='settings')draw()});schedPush(50)}
