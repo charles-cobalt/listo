@@ -92,12 +92,12 @@ const IC={
  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M6 6l12 12M18 6L6 18"/></svg>',
  pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20l4-1L19.5 7.5a2.1 2.1 0 0 0-3-3L5 16l-1 4z"/></svg>',
  chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
-let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edC='',edP=null,nsVal='',ncVal='';
+let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edC='',edP=null,nsVal='',ncVal='',rstOpen=false,rchk=false,rtxt='',rnote='';
 const theme=()=>localStorage.getItem(TK)||'auto';
 function applyTheme(){const t=theme(),d=t==='day'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.toggle('day',d);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#ededed':'#121212'}
 matchMedia('(prefers-color-scheme: light)').addEventListener&&matchMedia('(prefers-color-scheme: light)').addEventListener('change',applyTheme);
 /*SYNC*/
-const SK='listo.sync.v1',OWNP='listo.own.',ONK='listo.owner.v1',LK='listo.linked.v1';
+const SK='listo.sync.v1',OWNP='listo.own.',ONK='listo.owner.v1',LK='listo.linked.v1',RSK='listo.resetAt.v1';
 const hsh=s=>{s=String(s);let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return s.length+':'+(h>>>0)};
 const jl=o=>{try{return JSON.parse(o)}catch(e){return null}};
 const canon=v=>Array.isArray(v)?'['+v.map(canon).join(',')+']':(v&&typeof v==='object')?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}':JSON.stringify(v===undefined?null:v);
@@ -129,17 +129,20 @@ function applyM(M){const b=buildFrom(M.u,M.ord);comps=b.c;presets=b.p;sum=b.s;sa
  SY.base={};Object.keys(M.u).forEach(k=>SY.base[k]=hsh(JSON.stringify(M.u[k])));SY.mt=M.mt;SY.del=M.del;SY.ordAt=M.ordAt;SY.ordH=hsh(JSON.stringify(ordOf()));SY.init=1;
  if(M.th&&M.th!==(localStorage.getItem(TK)||'')){localStorage.setItem(TK,M.th);applyTheme()}
  SY.thH=localStorage.getItem(TK)||'';SY.thAt=M.thAt;saveSY()}
-const encDoc=M=>{const b=buildFrom(M.u,M.ord);return {ver:2,c:b.c,p:b.p,s:b.s,m:JSON.stringify({mt:M.mt,del:M.del,ord:M.ord,ordAt:M.ordAt}),theme:M.th||'',themeAt:M.thAt||0,updated:Date.now()}};
+const encDoc=(M,ra)=>{const b=buildFrom(M.u,M.ord);return {ver:2,c:b.c,p:b.p,s:b.s,m:JSON.stringify({mt:M.mt,del:M.del,ord:M.ord,ordAt:M.ordAt}),theme:M.th||'',themeAt:M.thAt||0,updated:Date.now(),resetAt:ra}};
 let pushT=0,pushing=false,again=false,rev=0;
 function schedPush(d){if(user){clearTimeout(pushT);pushT=setTimeout(doSync,d===undefined?300:d)}}
 async function doSync(){if(!user)return;if(pushing){again=true;return}pushing=true;const me=user.uid,r0=rev;
  try{stamp(!SY.synced);let out=null;const ref=doc(db,'users',me);
-  await runTransaction(db,async tx=>{const s=await tx.get(ref),L=localState();
-   if(!s.exists()){out={M:L,write:true};return tx.set(ref,encDoc(L),{merge:true})}
-   const R=decode(s.data()),M=merge(L,R);out={M,write:sigOf(M)!==sigOf(R)};if(out.write)tx.set(ref,encDoc(M),{merge:true})});
+  await runTransaction(db,async tx=>{const s=await tx.get(ref),seen=+localStorage.getItem(RSK)||0,L=localState();
+   if(!s.exists()){out={M:L,ra:seen,write:true};return tx.set(ref,encDoc(L,seen),{merge:true})}
+   const d=s.data(),ra=d.resetAt||0,R=decode(d);
+   if(ra>seen){out={M:R,ra,write:false,adopt:true};return}
+   if(seen>ra){out={M:L,ra:seen,write:true};return tx.set(ref,encDoc(L,seen),{merge:true})}
+   const M=merge(L,R);out={M,ra,write:sigOf(M)!==sigOf(R)};if(out.write)tx.set(ref,encDoc(M,ra),{merge:true})});
   if(user&&user.uid===me&&out&&rev!==r0)again=true;
-  else if(user&&user.uid===me&&out){
-   if(sigOf(out.M)!==sigOf(localState())){applyM(out.M);draw()}
+  else if(user&&user.uid===me&&out){if(out.adopt)localStorage.setItem(RSK,String(out.ra));
+   if(out.adopt||sigOf(out.M)!==sigOf(localState())){applyM(out.M);draw()}
    SY.synced=1;saveSY();syncAt=Date.now();if(msg.indexOf('Sync')===0)msg='';if(page==='settings')draw()}
  }catch(e){msg=(e&&(e.code==='unavailable'||e.code==='failed-precondition'||!navigator.onLine))?'Sync: offline. Changes are saved here and will sync when you are back online.':'Sync problem: '+((e&&e.code)||'unknown')+'. Your lists on this device are safe.';if(page==='settings')draw()}
  pushing=false;if(again){again=false;schedPush(1500)}}
@@ -201,10 +204,17 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  v.querySelectorAll('[data-sv]').forEach(b=>b.onclick=()=>{const c=comps.find(y=>y.id===b.dataset.sv);const nm=normName($('#er').value);if(c&&nm){c.name=nm;persist()}edC='';draw()});
  const er=$('#er');if(er)er.onkeydown=e=>{if(e.key==='Enter'){const b=v.querySelector('[data-sv]');if(b)b.click()}};
  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{const id=b.dataset.x;comps=comps.filter(y=>y.id!==id);presets.forEach(p=>p.ids=p.ids.filter(i=>i!==id));persist();draw()})}
+const dlFile=(name,text,type)=>{const b=new Blob([text],{type:type||'text/plain'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},500)};
+const backupFile=()=>JSON.stringify({app:'listo',format:'listo-backup',version:1,exported:new Date().toISOString(),components:comps,presets:presets,sum,settings:{theme:theme()}},null,2);
+function resetHtml(){const ok=rchk&&rtxt.trim().toUpperCase()==='RESET';
+ let h='<h2>Reset account</h2><div class="card p"><div class="mu">Start over with an empty Listo.</div>';
+ if(!rstOpen)h+='<button class="btn sec" id="r-open" style="width:100%;box-sizing:border-box">Reset account</button>';
+ else h+='<div style="margin-top:10px">This erases '+comps.length+' components, '+presets.length+' presets and '+sum.length+' items in Sum.</div><div class="mu">'+(user?'It clears this device and your synced copy for '+esc(user.email)+'. Other devices signed in to this account clear the next time they open Listo.':'You are signed out, so this clears this device only.')+' Your sign-in, email and theme are not touched. This cannot be undone.</div><button class="lnk" id="r-bk" style="padding-left:0">Download a backup file first</button><div class="row" style="margin-top:4px"><button class="chip sm'+(rchk?' on':'')+'" id="r-chk">I saved a backup file</button></div><label class="f">Type RESET to confirm</label><input id="rtxt" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" value="'+esc(rtxt)+'"><div class="row" style="margin-top:10px"><button class="btn'+(ok?'':' sec')+'" id="rgo" style="flex:1;margin-top:0;'+(ok?'':'opacity:.4')+'">Erase everything</button><button class="btn sec" id="r-no" style="flex:1;margin-top:0">Cancel</button></div>';
+ return h+(rnote?'<div class="msg" style="margin:10px 0 0">'+esc(rnote)+'</div>':'')+'</div>'}
 function drawSettings(v){const th=theme();let acct;
  if(user){acct='<div class="card p"><div>'+esc(user.email)+'</div><div class="mu" style="margin-top:4px">'+(user.emailVerified?'Email verified. Synced across your devices.':'Email not verified yet. Check your inbox. Synced across your devices.')+(syncAt?' Last synced '+new Date(syncAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'.':'')+'</div>'+(user.emailVerified?'':'<button class="lnk" id="resend">Resend verification email</button><br><button class="lnk" id="chk">I verified my email</button><br>')+'<button class="lnk" id="syncnow">Sync now</button><br><button class="lnk" id="out">Sign out</button></div>'}
  else{acct='<div class="card p"><div class="mu" style="margin-bottom:4px">Signed out. Your lists are saved on this device only.</div><label class="f">Email</label><input id="em" type="email" autocomplete="email" autocapitalize="off" spellcheck="false"><label class="f">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="row" style="margin-top:10px"><button class="btn go" data-a="in" style="margin-top:0">Sign in</button><button class="btn sec go" data-a="up" style="margin-top:0">Create account</button></div><div class="row" style="margin-top:10px"><button class="btn sec go" data-a="reset" style="margin-top:0">Forgot password</button></div></div>'}
- v.innerHTML='<div class="twrap">'+WM+'<h1>Settings</h1></div><h2>Theme</h2><div class="row">'+['night','day','auto'].map(k=>'<button class="chip '+(th===k?'on':'')+'" data-th="'+k+'">'+k[0].toUpperCase()+k.slice(1)+'</button>').join('')+'</div><h2>Account</h2>'+acct+'<div class="msg" id="msg">'+esc(msg)+'</div>';
+ v.innerHTML='<div class="twrap">'+WM+'<h1>Settings</h1></div><h2>Theme</h2><div class="row">'+['night','day','auto'].map(k=>'<button class="chip '+(th===k?'on':'')+'" data-th="'+k+'">'+k[0].toUpperCase()+k.slice(1)+'</button>').join('')+'</div><h2>Account</h2>'+acct+'<div class="msg" id="msg">'+esc(msg)+'</div>'+resetHtml();
  v.querySelectorAll('[data-th]').forEach(b=>b.onclick=()=>{localStorage.setItem(TK,b.dataset.th);applyTheme();if(user){if(SY.synced)stamp();schedPush()}draw()});
  v.querySelectorAll('.go').forEach(go=>go.onclick=async()=>{const a=go.dataset.a,em=$('#em').value.trim(),pw=$('#pw')?$('#pw').value:'';msg='';
   try{if(a==='reset'){await sendPasswordResetEmail(auth,em);msg='Reset link sent if that email has an account.'}
@@ -213,7 +223,13 @@ function drawSettings(v){const th=theme();let acct;
  const out=$('#out');if(out)out.onclick=()=>signOut(auth);
  const ck=$('#chk');if(ck)ck.onclick=async()=>{try{await user.reload();msg=auth.currentUser.emailVerified?'Email verified.':'Not verified yet.'}catch(e){msg='Try again in a minute.'}draw()};
  const sn=$('#syncnow');if(sn)sn.onclick=()=>{msg='Syncing...';draw();schedPush(0)};
- const rs=$('#resend');if(rs)rs.onclick=async()=>{try{await sendEmailVerification(user);msg='Verification email sent.'}catch(e){msg='Try again in a minute.'}draw()}}
+ const rs=$('#resend');if(rs)rs.onclick=async()=>{try{await sendEmailVerification(user);msg='Verification email sent.'}catch(e){msg='Try again in a minute.'}draw()};
+ const ro=$('#r-open');if(ro)ro.onclick=()=>{rstOpen=true;rchk=false;rtxt='';rnote='';draw()};
+ const rn=$('#r-no');if(rn)rn.onclick=()=>{rstOpen=false;rchk=false;rtxt='';rnote='';draw()};
+ const rc=$('#r-chk');if(rc)rc.onclick=()=>{rchk=!rchk;draw()};
+ const rb=$('#r-bk');if(rb)rb.onclick=()=>{dlFile('listo-backup_'+new Date().toISOString().slice(0,10)+'.json',backupFile(),'application/json');rnote='Backup file downloaded.';draw()};
+ const rt=$('#rtxt');if(rt)rt.oninput=()=>{rtxt=rt.value;const ok=rchk&&rtxt.trim().toUpperCase()==='RESET',b=$('#rgo');if(b){b.classList.toggle('sec',!ok);b.style.opacity=ok?'':'.4'}};
+ const rg=$('#rgo');if(rg)rg.onclick=()=>{if(rchk&&rtxt.trim().toUpperCase()==='RESET'){comps=[];presets=[];sum=[];localStorage.setItem(RSK,String(Date.now()));persist();rstOpen=false;rchk=false;rtxt='';rnote='Account reset. Everything is empty.'}else rnote='Tick the box and type RESET first.';draw()}}
 function draw(){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===page));
  const v=$('#view');
  if(page==='sum')drawSum(v);else if(page==='components')drawComponents(v);else drawSettings(v);
