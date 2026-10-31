@@ -70,6 +70,7 @@ nav button{color:#6a6a6a;display:flex;align-items:center;justify-content:center;
 .st-controls .st-options>.chip[data-st="cat:all"]{grid-column:1/-1}.st-controls .st-options.st-center{display:flex;flex-wrap:wrap;justify-content:center}.st-controls .st-options.st-center>.chip{flex:0 0 calc((100% - 24px)/4)}
 .st-controls .st-options>.chip{display:flex;align-items:center;justify-content:center;text-align:center;min-width:0;max-width:100%;height:auto;min-height:38px;box-sizing:border-box;padding:8px 4px;font-size:12px;line-height:16px;white-space:normal;overflow-wrap:anywhere}
 
+.src{color:var(--mu);font-size:9px;letter-spacing:.08em;text-transform:uppercase;line-height:1.8;margin-top:1px}
 /* Listo */
 #intro .mark{color:#f2f2f2;width:min(14.5vw,56px)}#intro .refl{transform:scaleY(-1);margin-top:2px;opacity:.14;-webkit-mask-image:linear-gradient(180deg,#000 0,transparent 70%);mask-image:linear-gradient(180deg,#000 0,transparent 70%)}
 .hlogo{color:#f2f2f2;width:31px}
@@ -161,13 +162,13 @@ function switchOwner(n){if(n===OWNER)return;
 const normName=s=>String(s||'').trim();
 function presetItems(p){if(Array.isArray(p.items))return p.items;return (p.ids||[]).map(id=>{const c=comps.find(c=>c.id===id);return c?c.name:null}).filter(Boolean)}
 function migrate(){let ch=false;presets.forEach(p=>{if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}});if(comps.length){comps.forEach(c=>{const ex=presets.find(p=>p.id==='mig-'+c.id);if(ex){if(!ex.items.some(n=>n.toLowerCase()===c.name.toLowerCase()))ex.items.push(c.name)}else presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
-function addToSum(name){name=normName(name);if(!name)return;const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ex){if(ex.done){ex.done=false;note='Back on the list.'}else note='Already in Sum.'}else{sum.push({id:uid(),name,done:false,at:Date.now()});note=''}persist()}
+function addToSum(name,src){name=normName(name);if(!name)return;src=normName(src);const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ex){const was=ex.done;if(was)ex.done=false;let added=false;if(src&&!(ex.src||[]).some(s=>String(s).toLowerCase()===src.toLowerCase())){ex.src=(ex.src||[]).concat([src]);added=true}note=was?'Back on the list.':(added?'':'Already in Sum.')}else{const it={id:uid(),name,done:false,at:Date.now()};if(src)it.src=[src];sum.push(it);note=''}persist()}
 /*DRAW*/
 const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  if(!sum.length){h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
- else{h+='<ul>'+sum.map(x=>'<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>').join('')+'</ul>';
+ else{h+='<ul>'+sum.map(x=>'<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+(x.src&&x.src.length?'<div class="src">from '+x.src.map(esc).join(' \u00b7 ')+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>').join('')+'</ul>';
   h+='<div class="row" style="margin-top:14px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>'}
  v.innerHTML=h;
  const ns=$('#ns');ns.oninput=()=>{nsVal=ns.value};const go=()=>{addToSum(ns.value);ns.value='';nsVal='';draw()};
@@ -187,7 +188,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  const np=$('#np');if(np)np.onclick=()=>{edP={id:'',name:'',items:[]};piVal='';note='';draw()};
  v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);edP={id:p.id,name:p.name,items:presetItems(p).slice()};piVal='';note='';draw()});
  v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{presets=presets.filter(y=>y.id!==b.dataset.px);persist();draw()});
- v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){presetItems(p).forEach(n=>addToSum(n));note='Added to Sum.'}draw()});
+ v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){presetItems(p).forEach(n=>addToSum(n,p.name));note='Added to Sum.'}draw()});
  const pn=$('#pn');if(pn)pn.oninput=()=>{edP.name=pn.value};
  const pi=$('#pi');if(pi){pi.oninput=()=>{piVal=pi.value};const addIt=()=>{const nm=normName(pi.value);if(!nm)return;if(edP.items.some(n=>n.toLowerCase()===nm.toLowerCase()))note='Already in this preset.';else{edP.items.push(nm);note=''}piVal='';draw()};$('#pib').onclick=addIt;pi.onkeydown=e=>{if(e.key==='Enter')addIt()}};
  v.querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{edP.items.splice(+b.dataset.pr,1);draw()});
