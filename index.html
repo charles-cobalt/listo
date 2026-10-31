@@ -78,21 +78,152 @@ svg.wm{width:190px;top:-40px;left:-16px;opacity:.06}
 <div id="intro"><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="mark"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="mark refl"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg><p>L I S T O</p></div>
 <div class="hd"><button class="logo" id="home" aria-label="Home"><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="hlogo keep"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg></button></div><div id="app"><div class="hdsp"></div><div id="view"></div></div>
 <nav id="nav"><button data-go="sum" aria-label="Sum"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="320"/></svg></button><button data-go="components" aria-label="Components"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="215"/></svg></button><button data-go="settings" aria-label="Settings"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="701.5" cy="701.5" r="115"/></svg></button></nav>
-<script>
-const $=s=>document.querySelector(s),K='listo.theme';
-let page='sum';
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,sendEmailVerification,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,doc,onSnapshot,runTransaction} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+const fapp=initializeApp({"apiKey":"AIzaSyCsLY_G-ax8D4dPQQOP7gTl7wjCJ4Pl-zg","authDomain":"listo-a3da9.firebaseapp.com","projectId":"listo-a3da9","storageBucket":"listo-a3da9.firebasestorage.app","messagingSenderId":"813323268597","appId":"1:813323268597:web:92211572fce381649370bc"}),auth=getAuth(fapp),db=getFirestore(fapp);
+const $=s=>document.querySelector(s),TK='listo.theme',DK='listo.data.v1';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const WM='<svg class="wm" viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></svg>';
-const theme=()=>localStorage.getItem(K)||'auto';
+const IC={
+ plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M5 12h14M12 5v14"/></svg>',
+ x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+ pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20l4-1L19.5 7.5a2.1 2.1 0 0 0-3-3L5 16l-1 4z"/></svg>',
+ chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
+let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edC='',edP=null;
+const theme=()=>localStorage.getItem(TK)||'auto';
 function applyTheme(){const t=theme(),d=t==='day'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.toggle('day',d);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#ededed':'#121212'}
 matchMedia('(prefers-color-scheme: light)').addEventListener&&matchMedia('(prefers-color-scheme: light)').addEventListener('change',applyTheme);
+/*SYNC*/
+const SK='listo.sync.v1',OWNP='listo.own.',ONK='listo.owner.v1',LK='listo.linked.v1';
+const hsh=s=>{s=String(s);let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return s.length+':'+(h>>>0)};
+const jl=o=>{try{return JSON.parse(o)}catch(e){return null}};
+const canon=v=>Array.isArray(v)?'['+v.map(canon).join(',')+']':(v&&typeof v==='object')?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}':JSON.stringify(v===undefined?null:v);
+const freshSY=()=>({base:{},mt:{},del:{},ordH:'',ordAt:0,thH:'',thAt:0,init:0,synced:0});
+let SY=Object.assign(freshSY(),jl(localStorage.getItem(SK))||{}),OWNER=localStorage.getItem(ONK)||'';
+const saveSY=()=>localStorage.setItem(SK,JSON.stringify(SY));
+const saveData=()=>localStorage.setItem(DK,JSON.stringify({c:comps,p:presets,s:sum}));
+function unitsOf(){const u={};comps.forEach(x=>{if(x&&x.id)u['c:'+x.id]=x});presets.forEach(x=>{if(x&&x.id)u['p:'+x.id]=x});sum.forEach(x=>{if(x&&x.id)u['s:'+x.id]=x});return u}
+const ordOf=()=>({c:comps.map(x=>x.id),p:presets.map(x=>x.id),s:sum.map(x=>x.id)});
+function buildFrom(u,ord){const ks=Object.keys(u),order=(pre,arr)=>{const ids=(arr||[]).filter(id=>u[pre+':'+id]!==undefined);const seen=new Set(ids);ks.forEach(k=>{if(k.startsWith(pre+':')&&!seen.has(k.slice(2)))ids.push(k.slice(2))});return ids.map(id=>u[pre+':'+id])};return {c:order('c',ord&&ord.c),p:order('p',ord&&ord.p),s:order('s',ord&&ord.s)}}
+function stamp(ff){const u=unitsOf(),now=Date.now(),first=ff||!SY.init;
+ Object.keys(u).forEach(k=>{const h=hsh(JSON.stringify(u[k]));if(SY.base[k]!==h){SY.base[k]=h;SY.mt[k]=first?0:now;delete SY.del[k]}});
+ Object.keys(SY.base).forEach(k=>{if(!(k in u)){delete SY.base[k];delete SY.mt[k];SY.del[k]=now}});
+ const oh=hsh(JSON.stringify(ordOf()));if(oh!==SY.ordH){SY.ordH=oh;SY.ordAt=first?0:now}
+ const th=localStorage.getItem(TK)||'';if(th!==SY.thH){SY.thH=th;SY.thAt=first?0:now}
+ SY.init=1;saveSY()}
+const localState=()=>({u:unitsOf(),mt:Object.assign({},SY.mt),del:Object.assign({},SY.del),ord:ordOf(),ordAt:SY.ordAt,th:localStorage.getItem(TK)||'',thAt:SY.thAt});
+function decode(d){const m=jl(d.m);
+ if(d.ver===2&&m){const u={};(d.c||[]).forEach(x=>{if(x&&x.id)u['c:'+x.id]=x});(d.p||[]).forEach(x=>{if(x&&x.id)u['p:'+x.id]=x});(d.s||[]).forEach(x=>{if(x&&x.id)u['s:'+x.id]=x});return {u,mt:m.mt||{},del:m.del||{},ord:m.ord||{},ordAt:m.ordAt||0,th:d.theme||'',thAt:d.themeAt||0}}
+ return {u:{},mt:{},del:{},ord:{},ordAt:0,th:'',thAt:0}}
+function merge(L,R){const u={},mt={},del={},now=Date.now();
+ new Set([...Object.keys(L.u),...Object.keys(R.u),...Object.keys(L.del),...Object.keys(R.del)]).forEach(k=>{
+  const lm=k in L.u?(L.mt[k]||0):-1,rm=k in R.u?(R.mt[k]||0):-1,dl=Math.max(L.del[k]===undefined?-1:L.del[k],R.del[k]===undefined?-1:R.del[k]),best=Math.max(lm,rm);
+  if(dl>=0&&dl>=best){if(now-dl<60*864e5)del[k]=dl;return}
+  if(rm>=lm){u[k]=R.u[k];mt[k]=R.mt[k]||0}else{u[k]=L.u[k];mt[k]=L.mt[k]||0}});
+ return {u,mt,del,ord:L.ordAt>R.ordAt?L.ord:R.ord,ordAt:Math.max(L.ordAt,R.ordAt),th:L.thAt>R.thAt?L.th:R.th,thAt:Math.max(L.thAt,R.thAt)}}
+const sigOf=M=>hsh(canon([M.u,M.mt,M.del,M.ord,M.ordAt,M.th,M.thAt]));
+function applyM(M){const b=buildFrom(M.u,M.ord);comps=b.c;presets=b.p;sum=b.s;saveData();
+ SY.base={};Object.keys(M.u).forEach(k=>SY.base[k]=hsh(JSON.stringify(M.u[k])));SY.mt=M.mt;SY.del=M.del;SY.ordAt=M.ordAt;SY.ordH=hsh(JSON.stringify(ordOf()));SY.init=1;
+ if(M.th&&M.th!==(localStorage.getItem(TK)||'')){localStorage.setItem(TK,M.th);applyTheme()}
+ SY.thH=localStorage.getItem(TK)||'';SY.thAt=M.thAt;saveSY()}
+const encDoc=M=>{const b=buildFrom(M.u,M.ord);return {ver:2,c:b.c,p:b.p,s:b.s,m:JSON.stringify({mt:M.mt,del:M.del,ord:M.ord,ordAt:M.ordAt}),theme:M.th||'',themeAt:M.thAt||0,updated:Date.now()}};
+let pushT=0,pushing=false,again=false,rev=0;
+function schedPush(d){if(user){clearTimeout(pushT);pushT=setTimeout(doSync,d===undefined?300:d)}}
+async function doSync(){if(!user)return;if(pushing){again=true;return}pushing=true;const me=user.uid,r0=rev;
+ try{stamp(!SY.synced);let out=null;const ref=doc(db,'users',me);
+  await runTransaction(db,async tx=>{const s=await tx.get(ref),L=localState();
+   if(!s.exists()){out={M:L,write:true};return tx.set(ref,encDoc(L),{merge:true})}
+   const R=decode(s.data()),M=merge(L,R);out={M,write:sigOf(M)!==sigOf(R)};if(out.write)tx.set(ref,encDoc(M),{merge:true})});
+  if(user&&user.uid===me&&out&&rev!==r0)again=true;
+  else if(user&&user.uid===me&&out){
+   if(sigOf(out.M)!==sigOf(localState())){applyM(out.M);draw()}
+   SY.synced=1;saveSY();syncAt=Date.now();if(msg.indexOf('Sync')===0)msg='';if(page==='settings')draw()}
+ }catch(e){msg=(e&&(e.code==='unavailable'||e.code==='failed-precondition'||!navigator.onLine))?'Sync: offline. Changes are saved here and will sync when you are back online.':'Sync problem: '+((e&&e.code)||'unknown')+'. Your lists on this device are safe.';if(page==='settings')draw()}
+ pushing=false;if(again){again=false;schedPush(1500)}}
+function persist(){rev++;saveData();if(user){if(SY.synced)stamp();schedPush()}}
+function stashOwner(o){localStorage.setItem(OWNP+(o||'anon'),JSON.stringify({c:comps,p:presets,s:sum,sy:SY}))}
+function loadOwner(o){const s=jl(localStorage.getItem(OWNP+(o||'anon')));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[];SY=Object.assign(freshSY(),s.sy||{})}else{comps=[];presets=[];sum=[];SY=freshSY()}
+ saveData();saveSY()}
+function switchOwner(n){if(n===OWNER)return;
+ const had=localStorage.getItem(OWNP+(n||'anon'));
+ const linked=localStorage.getItem(LK);
+ if(OWNER===''&&n!==''&&!had&&!linked){stashOwner('');SY=freshSY()}
+ else{stashOwner(OWNER);loadOwner(n)}
+ OWNER=n;localStorage.setItem(ONK,OWNER);if(n)localStorage.setItem(LK,'1')}
+['visibilitychange','focus','pageshow','online'].forEach(ev=>addEventListener(ev,()=>{if(user&&!document.hidden)schedPush(400)}));
+/*DATA*/
+const normName=s=>String(s||'').trim();
+function addComponent(name){name=normName(name);if(!name)return false;if(comps.some(x=>x.name.toLowerCase()===name.toLowerCase())){note='Already in Components.';return false}comps.push({id:uid(),name,at:Date.now()});persist();return true}
+function addToSum(name){name=normName(name);if(!name)return;const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ex){if(ex.done){ex.done=false;note='Back on the list.'}else note='Already in Sum.'}else{sum.push({id:uid(),name,done:false,at:Date.now()});note=''}persist()}
+function presetItems(p){return p.ids.map(id=>comps.find(c=>c.id===id)).filter(Boolean)}
+/*DRAW*/
 const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
-function draw(){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===page));
- const v=$('#view');let h='<div class="twrap">'+WM+'<h1>'+TITLES[page]+'</h1></div>';
- if(page==='settings'){h+='<h2>Theme</h2><div class="row">'+['night','day','auto'].map(k=>'<button class="chip '+(theme()===k?'on':'')+'" data-th="'+k+'">'+k[0].toUpperCase()+k.slice(1)+'</button>').join('')+'</div>'}
+function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
+ h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
+ if(!sum.length){h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
+ else{h+='<ul>'+sum.map(x=>'<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>').join('')+'</ul>';
+  h+='<div class="row" style="margin-top:14px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>'}
  v.innerHTML=h;
- v.querySelectorAll('[data-th]').forEach(b=>b.onclick=()=>{localStorage.setItem(K,b.dataset.th);applyTheme();draw()});
+ const ns=$('#ns');const go=()=>{if(addToSum(ns.value)){return}ns.value='';draw()};
+ $('#nsb').onclick=go;ns.onkeydown=e=>{if(e.key==='Enter')go()};
+ v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const x=sum.find(y=>y.id===b.dataset.t);if(x){x.done=!x.done;persist()}draw()});
+ v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{sum=sum.filter(y=>y.id!==b.dataset.x);persist();draw()});
+ const cd=$('#clrd');if(cd)cd.onclick=()=>{sum=sum.filter(x=>!x.done);persist();draw()};
+ const ca=$('#clra');if(ca)ca.onclick=()=>{sum=[];persist();draw()}}
+function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div>';
+ h+='<h2>Add</h2><div class="add"><input id="nc" autocapitalize="sentences" spellcheck="false"><button class="ic" id="ncb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
+ h+='<h2>Presets</h2>';
+ if(presets.length)h+='<ul>'+presets.map(p=>{const names=presetItems(p).map(c=>esc(c.name)).join(' · ');
+  return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(p.name)+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="mu" style="margin:2px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pa="'+p.id+'">Add all to Sum</button></li>'}).join('')+'</ul>';
+ else if(!edP)h+='<div class="mu" style="margin:0 2px 10px">No presets yet.</div>';
+ if(edP){const sel=new Set(edP.ids);
+  h+='<div class="card p"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'"><label class="f">Items</label>'+(comps.length?'<div class="lgrid">'+comps.map(c=>'<button class="chip sm'+(sel.has(c.id)?' on':'')+'" data-pk="'+c.id+'">'+esc(c.name)+'</button>').join('')+'</div>':'<div class="mu">Add components below first, then pick them here.</div>')+'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div></div>'}
+ else h+='<button class="btn sec" id="np">New preset</button>';
+ h+='<h2>Components</h2>';
+ if(!comps.length)h+='<div class="empty">No components yet.<br>Add your go-to items above.</div>';
+ else h+='<ul>'+comps.map(c=>edC===c.id?'<li class="card"><div class="t"><input id="er" value="'+esc(c.name)+'" autocapitalize="sentences" spellcheck="false"></div><button class="ic" data-sv="'+c.id+'" aria-label="Save">'+IC.chk+'</button></li>':'<li class="card"><button class="ic" data-add="'+c.id+'" aria-label="Add to Sum">'+IC.plus+'</button><div class="t" data-tap="'+c.id+'">'+esc(c.name)+'</div><button class="ic" data-e="'+c.id+'" aria-label="Rename">'+IC.pen+'</button><button class="ic" data-x="'+c.id+'" aria-label="Delete">'+IC.x+'</button></li>').join('')+'</ul>';
+ v.innerHTML=h;
+ const nc=$('#nc');const go=()=>{if(addComponent(nc.value))nc.value='';draw()};
+ $('#ncb').onclick=go;nc.onkeydown=e=>{if(e.key==='Enter')go()};
+ const np=$('#np');if(np)np.onclick=()=>{edP={id:'',name:'',ids:[]};note='';draw()};
+ v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);edP={id:p.id,name:p.name,ids:p.ids.slice()};note='';draw()});
+ v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{presets=presets.filter(y=>y.id!==b.dataset.px);persist();draw()});
+ v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){presetItems(p).forEach(c=>addToSum(c.name));note='Added to Sum.'}draw()});
+ v.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>{const i=edP.ids.indexOf(b.dataset.pk);if(i<0)edP.ids.push(b.dataset.pk);else edP.ids.splice(i,1);draw()});
+ const ps=$('#ps');if(ps)ps.onclick=()=>{const nm=normName($('#pn').value);if(!nm){note='Name the preset first.';draw();return}if(edP.id){const p=presets.find(y=>y.id===edP.id);p.name=nm;p.ids=edP.ids.filter(id=>comps.some(c=>c.id===id))}else presets.push({id:uid(),name:nm,ids:edP.ids,at:Date.now()});edP=null;note='';persist();draw()};
+ const pc=$('#pc');if(pc)pc.onclick=()=>{edP=null;draw()};
+ v.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const c=comps.find(y=>y.id===b.dataset.add);if(c)addToSum(c.name);draw()});
+ v.querySelectorAll('[data-tap]').forEach(t=>t.onclick=()=>{const c=comps.find(y=>y.id===t.dataset.tap);if(c)addToSum(c.name);draw()});
+ v.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{edC=b.dataset.e;draw();const er=$('#er');er.focus();er.setSelectionRange(er.value.length,er.value.length)});
+ v.querySelectorAll('[data-sv]').forEach(b=>b.onclick=()=>{const c=comps.find(y=>y.id===b.dataset.sv);const nm=normName($('#er').value);if(c&&nm){c.name=nm;persist()}edC='';draw()});
+ const er=$('#er');if(er)er.onkeydown=e=>{if(e.key==='Enter'){const b=v.querySelector('[data-sv]');if(b)b.click()}};
+ v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{const id=b.dataset.x;comps=comps.filter(y=>y.id!==id);presets.forEach(p=>p.ids=p.ids.filter(i=>i!==id));persist();draw()})}
+function drawSettings(v){const th=theme();let acct;
+ if(user){acct='<div class="card p"><div>'+esc(user.email)+'</div><div class="mu" style="margin-top:4px">'+(user.emailVerified?'Email verified. Synced across your devices.':'Email not verified yet. Check your inbox. Synced across your devices.')+(syncAt?' Last synced '+new Date(syncAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'.':'')+'</div>'+(user.emailVerified?'':'<button class="lnk" id="resend">Resend verification email</button><br><button class="lnk" id="chk">I verified my email</button><br>')+'<button class="lnk" id="syncnow">Sync now</button><br><button class="lnk" id="out">Sign out</button></div>'}
+ else{acct='<div class="card p"><div class="mu" style="margin-bottom:4px">Signed out. Your lists are saved on this device only.</div><label class="f">Email</label><input id="em" type="email" autocomplete="email" autocapitalize="off" spellcheck="false"><label class="f">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="row" style="margin-top:10px"><button class="btn go" data-a="in" style="margin-top:0">Sign in</button><button class="btn sec go" data-a="up" style="margin-top:0">Create account</button></div><div class="row" style="margin-top:10px"><button class="btn sec go" data-a="reset" style="margin-top:0">Forgot password</button></div></div>'}
+ v.innerHTML='<div class="twrap">'+WM+'<h1>Settings</h1></div><h2>Theme</h2><div class="row">'+['night','day','auto'].map(k=>'<button class="chip '+(th===k?'on':'')+'" data-th="'+k+'">'+k[0].toUpperCase()+k.slice(1)+'</button>').join('')+'</div><h2>Account</h2>'+acct+'<div class="msg" id="msg">'+esc(msg)+'</div>';
+ v.querySelectorAll('[data-th]').forEach(b=>b.onclick=()=>{localStorage.setItem(TK,b.dataset.th);applyTheme();if(user){if(SY.synced)stamp();schedPush()}draw()});
+ v.querySelectorAll('.go').forEach(go=>go.onclick=async()=>{const a=go.dataset.a,em=$('#em').value.trim(),pw=$('#pw')?$('#pw').value:'';msg='';
+  try{if(a==='reset'){await sendPasswordResetEmail(auth,em);msg='Reset link sent if that email has an account.'}
+  else if(a==='up'){const c=await createUserWithEmailAndPassword(auth,em,pw);try{await sendEmailVerification(c.user);msg='Account created. Verification email sent.'}catch(e){}}
+  else await signInWithEmailAndPassword(auth,em,pw)}catch(e){msg=({'auth/invalid-credential':'Wrong email or password.','auth/email-already-in-use':'That email already has an account.','auth/weak-password':'Password needs at least 6 characters.','auth/invalid-email':'That email does not look right.','auth/missing-password':'Enter a password.'})[e.code]||('Could not complete: '+e.code)}draw()});
+ const out=$('#out');if(out)out.onclick=()=>signOut(auth);
+ const ck=$('#chk');if(ck)ck.onclick=async()=>{try{await user.reload();msg=auth.currentUser.emailVerified?'Email verified.':'Not verified yet.'}catch(e){msg='Try again in a minute.'}draw()};
+ const sn=$('#syncnow');if(sn)sn.onclick=()=>{msg='Syncing...';draw();schedPush(0)};
+ const rs=$('#resend');if(rs)rs.onclick=async()=>{try{await sendEmailVerification(user);msg='Verification email sent.'}catch(e){msg='Try again in a minute.'}draw()}}
+function draw(){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===page));
+ const v=$('#view');
+ if(page==='sum')drawSum(v);else if(page==='components')drawComponents(v);else drawSettings(v);
  scrollTo(0,0)}
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;draw()});
-$('#home').onclick=()=>{page='sum';draw()};
-draw();
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';edC='';edP=null;draw()});
+$('#home').onclick=()=>{page='sum';note='';draw();scrollTo(0,0)};
+(function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}})();
+onAuthStateChanged(auth,u=>{user=u;if(unsub){unsub();unsub=null}
+ if(u){switchOwner(u.uid);unsub=onSnapshot(doc(db,'users',u.uid),s=>{if(!s.metadata.hasPendingWrites)schedPush(50)},e=>{msg='Sync unavailable: '+e.code;if(page==='settings')draw()});schedPush(50)}
+ else switchOwner('');
+ draw()});
+applyTheme();draw();
 </script></body></html>
