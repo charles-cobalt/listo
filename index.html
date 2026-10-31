@@ -92,7 +92,7 @@ const IC={
  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M6 6l12 12M18 6L6 18"/></svg>',
  pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20l4-1L19.5 7.5a2.1 2.1 0 0 0-3-3L5 16l-1 4z"/></svg>',
  chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
-let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edC='',edP=null;
+let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edC='',edP=null,nsVal='',ncVal='';
 const theme=()=>localStorage.getItem(TK)||'auto';
 function applyTheme(){const t=theme(),d=t==='day'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.toggle('day',d);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#ededed':'#121212'}
 matchMedia('(prefers-color-scheme: light)').addEventListener&&matchMedia('(prefers-color-scheme: light)').addEventListener('change',applyTheme);
@@ -162,19 +162,19 @@ function presetItems(p){return p.ids.map(id=>comps.find(c=>c.id===id)).filter(Bo
 /*DRAW*/
 const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
- h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
+ h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  if(!sum.length){h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
  else{h+='<ul>'+sum.map(x=>'<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>').join('')+'</ul>';
   h+='<div class="row" style="margin-top:14px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>'}
  v.innerHTML=h;
- const ns=$('#ns');const go=()=>{if(addToSum(ns.value)){return}ns.value='';draw()};
+ const ns=$('#ns');ns.oninput=()=>{nsVal=ns.value};const go=()=>{addToSum(ns.value);ns.value='';nsVal='';draw()};
  $('#nsb').onclick=go;ns.onkeydown=e=>{if(e.key==='Enter')go()};
  v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const x=sum.find(y=>y.id===b.dataset.t);if(x){x.done=!x.done;persist()}draw()});
  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{sum=sum.filter(y=>y.id!==b.dataset.x);persist();draw()});
  const cd=$('#clrd');if(cd)cd.onclick=()=>{sum=sum.filter(x=>!x.done);persist();draw()};
  const ca=$('#clra');if(ca)ca.onclick=()=>{sum=[];persist();draw()}}
 function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div>';
- h+='<h2>Add</h2><div class="add"><input id="nc" autocapitalize="sentences" spellcheck="false"><button class="ic" id="ncb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
+ h+='<h2>Add</h2><div class="add"><input id="nc" autocapitalize="sentences" spellcheck="false" value="'+esc(ncVal)+'"><button class="ic" id="ncb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  h+='<h2>Presets</h2>';
  if(presets.length)h+='<ul>'+presets.map(p=>{const names=presetItems(p).map(c=>esc(c.name)).join(' · ');
   return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(p.name)+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="mu" style="margin:2px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pa="'+p.id+'">Add all to Sum</button></li>'}).join('')+'</ul>';
@@ -186,13 +186,13 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  if(!comps.length)h+='<div class="empty">No components yet.<br>Add your go-to items above.</div>';
  else h+='<ul>'+comps.map(c=>edC===c.id?'<li class="card"><div class="t"><input id="er" value="'+esc(c.name)+'" autocapitalize="sentences" spellcheck="false"></div><button class="ic" data-sv="'+c.id+'" aria-label="Save">'+IC.chk+'</button></li>':'<li class="card"><button class="ic" data-add="'+c.id+'" aria-label="Add to Sum">'+IC.plus+'</button><div class="t" data-tap="'+c.id+'">'+esc(c.name)+'</div><button class="ic" data-e="'+c.id+'" aria-label="Rename">'+IC.pen+'</button><button class="ic" data-x="'+c.id+'" aria-label="Delete">'+IC.x+'</button></li>').join('')+'</ul>';
  v.innerHTML=h;
- const nc=$('#nc');const go=()=>{if(addComponent(nc.value))nc.value='';draw()};
+ const nc=$('#nc');nc.oninput=()=>{ncVal=nc.value};const go=()=>{if(addComponent(nc.value)){nc.value='';ncVal=''}draw()};
  $('#ncb').onclick=go;nc.onkeydown=e=>{if(e.key==='Enter')go()};
  const np=$('#np');if(np)np.onclick=()=>{edP={id:'',name:'',ids:[]};note='';draw()};
  v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);edP={id:p.id,name:p.name,ids:p.ids.slice()};note='';draw()});
  v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{presets=presets.filter(y=>y.id!==b.dataset.px);persist();draw()});
  v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){presetItems(p).forEach(c=>addToSum(c.name));note='Added to Sum.'}draw()});
- v.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>{const i=edP.ids.indexOf(b.dataset.pk);if(i<0)edP.ids.push(b.dataset.pk);else edP.ids.splice(i,1);draw()});
+ v.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>{const pn=$('#pn');if(pn)edP.name=pn.value;const i=edP.ids.indexOf(b.dataset.pk);if(i<0)edP.ids.push(b.dataset.pk);else edP.ids.splice(i,1);draw()});
  const ps=$('#ps');if(ps)ps.onclick=()=>{const nm=normName($('#pn').value);if(!nm){note='Name the preset first.';draw();return}if(edP.id){const p=presets.find(y=>y.id===edP.id);p.name=nm;p.ids=edP.ids.filter(id=>comps.some(c=>c.id===id))}else presets.push({id:uid(),name:nm,ids:edP.ids,at:Date.now()});edP=null;note='';persist();draw()};
  const pc=$('#pc');if(pc)pc.onclick=()=>{edP=null;draw()};
  v.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const c=comps.find(y=>y.id===b.dataset.add);if(c)addToSum(c.name);draw()});
