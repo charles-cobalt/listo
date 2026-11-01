@@ -43,6 +43,7 @@ textarea{width:100%;background:#141414;border:1px solid #333;color:var(--tx);pad
 .vt+.vt{border-top:1px solid #262626}
 .vt-r{display:flex;align-items:center;gap:12px;flex:none}
 .vt .mu{font-size:13px}
+.qed{display:flex;gap:6px;flex:none}.qed input{min-width:0;height:44px;min-height:44px;padding:6px 4px;font-size:14px}.qed .qn{width:56px;text-align:center}.qed .qu{width:82px;text-align:left}
 .vt .ck.on:before{display:none}
 .vt .ck.on svg{display:block}
 .vw-in input{background:#1a1a1a;border:1px solid #3a3a3a;color:var(--tx);padding:7px 8px;font:inherit;font-size:13px;width:108px;height:32px;min-height:32px;text-align:center;color-scheme:dark}
@@ -320,7 +321,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
     +'<label class="f">Desired servings</label><div class="row" style="align-items:center"><button class="chip" id="dsd" style="flex:0 0 72px">&minus;</button><div style="flex:1;text-align:center;font-weight:600">'+fmtN(edP.dserv||1)+'</div><button class="chip" id="dsu" style="flex:0 0 72px">+</button></div><div class="mu" style="margin-top:6px">'+(ef!==1?'Quantities are saved at the original servings, cooked at \u00d7'+fmtN(ef)+'.':'Quantities are saved at the original servings.')+'</div>'
    :'<label class="f">Multiplier</label><div class="row" style="align-items:center"><button class="chip" id="mdn" style="flex:0 0 72px">&minus;</button><div style="flex:1;text-align:center;font-weight:600">'+fmtN(edP.mult||1)+'\u00d7</div><button class="chip" id="mup" style="flex:0 0 72px">+</button></div><div class="mu" style="margin-top:6px">Scales every quantity. Items are saved at 1\u00d7.</div>')
   +'<label class="f">Items</label>'
-  +(edP.items.length?edP.items.map((n,i)=>{const e=(edP.qty||{})[String(n).toLowerCase()],qd=e?((ef!==1?fmtN(e.q)+' \u00d7 '+fmtN(ef)+' = '+fmtN(e.q*ef):fmtN(e.q))+(e.u?' '+e.u:'')):'';return '<div class="vt"><div class="t" style="flex:1;min-width:24%;overflow-wrap:anywhere;line-height:1.5">'+esc(n)+(qd?'<div class="src">'+esc(qd)+'</div>':'')+'</div><div class="vt-r"><button class="ic" data-pr="'+i+'" aria-label="Remove">'+IC.x+'</button></div></div>'}).join(''):'<div class="mu">Nothing in this preset yet.</div>')
+  +(edP.items.length?'<div class="mu" style="margin:-2px 0 2px">Amount'+(et==='recipe'?' at original servings':' at 1\u00d7')+' and unit, on each line.</div>'+edP.items.map((n,i)=>{const e=(edP.qty||{})[String(n).toLowerCase()];return '<div class="vt"><div class="t" style="flex:1;min-width:24%;overflow-wrap:anywhere;line-height:1.5">'+esc(n)+(ef!==1?'<div class="src" data-qh="'+i+'">'+(e?'= '+fmtN(e.q*ef)+(e.u?' '+esc(e.u):''):'')+'</div>':'')+'</div><div class="qed"><input class="qn" data-eq="'+i+'" inputmode="decimal" autocomplete="off" aria-label="Quantity for '+esc(n)+'" value="'+(e?esc(fmtN(e.q)):'')+'"><input class="qu" data-eu="'+i+'" autocapitalize="off" spellcheck="false" aria-label="Unit for '+esc(n)+'" value="'+(e?esc(e.u):'')+'"></div><div class="vt-r"><button class="ic" data-pr="'+i+'" aria-label="Remove">'+IC.x+'</button></div></div>'}).join(''):'<div class="mu">Nothing in this preset yet.</div>')
   +'<div class="add"><input id="pi" autocapitalize="sentences" spellcheck="false" value="'+esc(piVal)+'"></div>'
   +'<div class="row" style="margin-top:8px;align-items:flex-end"><div style="flex:1;min-width:0"><label class="f" style="margin-top:0">'+(et==='recipe'?'Qty at original servings':'Qty at 1\u00d7')+'</label><input id="pq" inputmode="decimal" autocomplete="off" style="height:44px;min-height:44px" value="'+esc(piQ)+'"></div><div style="flex:1.4;min-width:0"><label class="f" style="margin-top:0">Unit</label><input id="pu" autocapitalize="off" spellcheck="false" style="height:44px;min-height:44px" value="'+esc(piU)+'"></div><button class="ic" id="pib" aria-label="Add item">'+IC.plus+'</button></div>'
   +(pcAsk?'<div style="margin-top:12px">Discard your unsaved changes?</div><div class="row" style="margin-top:10px"><button class="btn sec" id="pck" style="flex:1;margin-top:0">Keep editing</button><button class="btn sec" id="pcd" style="flex:1;margin-top:0">Discard changes</button></div>':'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div>')+'</div>'}
@@ -360,6 +361,19 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   $('#pib').onclick=addIt;pi.onkeydown=e=>{if(e.key==='Enter')addIt()};
   if(pqx)pqx.onkeydown=e=>{if(e.key==='Enter')addIt()};if(pux)pux.onkeydown=e=>{if(e.key==='Enter')addIt()}};
  v.querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{const nm2=edP.items[+b.dataset.pr];edP.items.splice(+b.dataset.pr,1);if(nm2&&edP.qty)delete edP.qty[String(nm2).toLowerCase()];pcAsk=false;draw()});
+ const commitQE=i=>{if(!edP)return;const n=edP.items[i];if(n===undefined)return;const k=String(n).toLowerCase();
+  const qEl=v.querySelector('[data-eq="'+i+'"]'),uEl=v.querySelector('[data-eu="'+i+'"]');if(!qEl||!uEl)return;
+  const qv=qEl.value.trim().replace(',','.'),un=normName(uEl.value),e=(edP.qty||{})[k];
+  if(qv===''){if(un){note='Add a quantity to use a unit.';draw();return}
+   if(e){delete edP.qty[k];pcAsk=false}}
+  else{const qn=Number(qv);
+   if(!isFinite(qn)||qn<=0){note='Quantity needs to be a number.';draw();return}
+   if(!e||e.q!==qn||e.u!==un){edP.qty[k]={q:qn,u:un};pcAsk=false}}
+  const qh=v.querySelector('[data-qh="'+i+'"]');
+  if(qh){const e3=(edP.qty||{})[k],ef2=(edP.type||'list')==='recipe'?(edP.dserv||1)/(edP.serv||1):(edP.mult||1);
+   qh.innerHTML=e3?'= '+fmtN(e3.q*ef2)+(e3.u?' '+esc(e3.u):''):''}};
+ v.querySelectorAll('[data-eq]').forEach(inp=>{inp.onchange=()=>commitQE(+inp.dataset.eq)});
+ v.querySelectorAll('[data-eu]').forEach(inp=>{inp.onchange=()=>commitQE(+inp.dataset.eu)});
  const ps=$('#ps');if(ps)ps.onclick=()=>{const nm=normName(edP.name);if(!nm){note='Name the preset first.';draw();return}
   const rec={name:nm,type:edP.type||'list',desc:(edP.desc||'').trim(),instr:(edP.instr||'').trim(),mult:edP.mult||1,items:edP.items.slice(),qty:{}};
   if(rec.type==='recipe'&&edP.servSet){rec.serv=edP.serv||1;rec.dserv=edP.dserv||1}
