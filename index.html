@@ -241,7 +241,7 @@ async function importFile(f){if(imp)return;imp={stage:'Reading '+(f.name||'photo
   else{const t=(await f.text()).slice(0,20000);if(!t.trim())throw new Error('empty');parts=[{text:'FILE CONTENTS:\n'+t}]}
   imp={stage:'Detecting the list\u2026',sub:'Usually a few seconds.'};draw();
   openImportDraft(await detect(parts));
- }catch(e){imp=null;note=importErr(e);draw()}}
+ }catch(e){console.warn('Listo import error:',e&&(e.code||''),e&&(e.message||e));imp=null;note=importErr(e);draw()}}
 function openImportDraft(d){const seen=new Set(),items=[],qty={};
  (Array.isArray(d.items)?d.items:[]).forEach(it=>{const n=normName(it&&it.name);if(!n)return;const k=n.toLowerCase();if(seen.has(k))return;seen.add(k);items.push(n);
   if(typeof it.quantity==='number'&&isFinite(it.quantity)&&it.quantity>0)qty[k]={q:Math.round(it.quantity*1000)/1000,u:normName(it.unit)}});
