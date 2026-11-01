@@ -78,10 +78,16 @@ nav button{color:#6a6a6a;display:flex;align-items:center;justify-content:center;
 .hlogo{color:#f2f2f2;width:31px}
 svg.wm{width:190px;top:-40px;left:-16px;opacity:.06}
 #pedit{scroll-margin-top:76px}
+#sortb{z-index:10;position:fixed;left:16px;bottom:calc(env(safe-area-inset-bottom) + 110px);width:44px;height:44px;background:#1a1a1ccc;color:var(--mu);border:1px solid #ffffff1f;font-size:15px;display:none;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#sortb:active{color:var(--tx);border-color:#ffffff40}
+html.day #sortb{background:linear-gradient(180deg,#e2e2e2,#c9c9c9);color:#545454;border:0}
+#sortl{position:fixed;z-index:10;left:70px;bottom:calc(env(safe-area-inset-bottom) + 110px);height:44px;display:none;align-items:center;font-size:11px;letter-spacing:.04em;color:var(--mu);pointer-events:none;text-transform:uppercase}
+html.day #sortl{color:#737373}
+@media (min-width:700px){#sortb{left:calc(50% - 280px + 16px)}#sortl{left:calc(50% - 280px + 70px)}}
 </style></head><body>
 <div id="intro"><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="mark"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="mark refl"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg><p>L I S T O</p></div>
 <div class="hd"><button class="logo" id="home" aria-label="Home"><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="hlogo keep"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg></button></div><div id="app"><div class="hdsp"></div><div id="view"></div></div>
-<nav id="nav"><button data-go="sum" aria-label="Sum"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="320"/></svg></button><button data-go="components" aria-label="Components"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="215"/></svg></button><button data-go="settings" aria-label="Settings"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="701.5" cy="701.5" r="115"/></svg></button></nav>
+<nav id="nav"><button data-go="sum" aria-label="Sum"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="320"/></svg></button><button data-go="components" aria-label="Components"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="215"/></svg></button><button data-go="settings" aria-label="Settings"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="701.5" cy="701.5" r="115"/></svg></button></nav><button id="sortb" aria-label="Sort">&#9670;</button><span id="sortl"></span>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
 import {getAI,getGenerativeModel,GoogleAIBackend} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js";
@@ -98,7 +104,9 @@ const IC={
  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M5 12h14M12 5v14"/></svg>',
  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M6 6l12 12M18 6L6 18"/></svg>',
  pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20l4-1L19.5 7.5a2.1 2.1 0 0 0-3-3L5 16l-1 4z"/></svg>',
- chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
+ chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+ grip:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>',
+ share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M12 4v11M7.5 8.5L12 4l4.5 4.5M5 13v6h14v-6"/></svg>'};
 let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edP=null,imp=null,nsVal='',piVal='',piQ='',piU='',rstOpen=false,rchk=false,rtxt='',rnote='',clraOpen=false,clraTxt='',pcAsk=false,rpOpen=false,rpSel='';
 const theme=()=>localStorage.getItem(TK)||'auto';
 function applyTheme(){const t=theme(),d=t==='day'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.toggle('day',d);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#ededed':'#121212'}
@@ -260,12 +268,28 @@ function openImportDraft(d){const seen=new Set(),items=[],qty={};
  imp=null;piVal='';piQ='';piU='';pcAsk=false;
  note='Found '+items.length+(items.length===1?' item':' items')+'. Check the draft, fix anything, then Save.';
  page='components';draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()}
+/*SORT + DRAG*/
+const SORTS=[['custom','Custom'],['custom','Custom',1],['name','Name'],['name','Name',1],['added','Date added'],['added','Date added',1]];
+let sortC=+localStorage.getItem('listo.sort.c')||0,sortS=+localStorage.getItem('listo.sort.s')||0;if(!(sortC>=0&&sortC<SORTS.length))sortC=0;if(!(sortS>=0&&sortS<SORTS.length))sortS=0;
+const sortView=(arr,si,nm)=>{const s=SORTS[si]||SORTS[0],k=s[0],rev=s[2]===1,a=arr.slice();
+ if(k==='name')a.sort((x,y)=>String(nm(x)).toLowerCase().localeCompare(String(nm(y)).toLowerCase()));
+ else if(k==='added')a.sort((x,y)=>(y.at||0)-(x.at||0));
+ if(rev)a.reverse();return a};
+function sortUI(){const b=$('#sortb'),l=$('#sortl');if(!b)return;
+ const on=page==='sum'?sum.length>1:(page==='components'&&presets.filter(p=>!p.arch).length>1);
+ b.style.display=on?'flex':'none';l.style.display=on?'flex':'none';if(!on)return;
+ const s=SORTS[page==='sum'?sortS:sortC]||SORTS[0];l.textContent=s[1]+(s[2]===1?' \u2191':' \u2193')}
+function dragReorder(e,li,ul,done){if(!li||!ul)return;e.preventDefault();const pid=e.pointerId,y0=e.clientY,off0=li.offsetTop;let moved=false;li.classList.add('drag');
+ const move=ev=>{if(ev.pointerId!==pid)return;moved=true;li.style.transform='translateY('+((ev.clientY-y0)+(off0-li.offsetTop))+'px)';const cy=ev.clientY;let pv=li.previousElementSibling;while(pv){const r=pv.getBoundingClientRect();if(cy<r.top+r.height/2){ul.insertBefore(li,pv);pv=li.previousElementSibling}else pv=null}let nx=li.nextElementSibling;while(nx){const r=nx.getBoundingClientRect();if(cy>r.top+r.height/2){ul.insertBefore(nx,li);nx=li.nextElementSibling}else nx=null}};
+ const up=ev=>{if(ev.pointerId!==undefined&&ev.pointerId!==pid)return;document.removeEventListener('pointermove',move,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);li.classList.remove('drag');li.style.transform='';if(!moved)return;done([...ul.children].map(c=>c.dataset.iid).filter(Boolean))};
+ document.addEventListener('pointermove',move,true);document.addEventListener('pointerup',up,true);document.addEventListener('pointercancel',up,true)}
+const wireGrips=(ul,done)=>{if(!ul)return;ul.querySelectorAll('.grip').forEach(g=>{g.onclick=e=>e.preventDefault();g.addEventListener('pointerdown',e=>dragReorder(e,g.closest('li'),ul,done))})};
 /*DRAW*/
 const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  if(!sum.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
- else{h+='<ul>'+sum.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(x.name)+(sub?'<div class="src">'+sub+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>'}).join('')+'</ul>';
+ else{const svw=sortView(sum,sortS,x=>x.name);h+='<ul id="sumlist">'+svw.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'" data-iid="'+x.id+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(x.name)+(sub?'<div class="src">'+sub+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button>'+(sortS===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</li>'}).join('')+'</ul>';
   const cn=contribNames();if(rpSel&&!cn.some(c=>c.key===rpSel))rpSel='';if(!cn.length){rpOpen=false;rpSel=''}
   if(rpOpen)h+=rpHtml(cn);
   else if(!clraOpen)h+=(cn.length?'<div class="row" style="margin-top:14px"><button class="btn sec" id="rpo" style="flex:1;margin-top:0">Remove a preset</button></div>':'')+'<div class="row" style="margin-top:'+(cn.length?'8':'14')+'px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>';
@@ -276,6 +300,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  $('#nsb').onclick=go;ns.onkeydown=e=>{if(e.key==='Enter')go()};
  v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const x=sum.find(y=>y.id===b.dataset.t);if(x){x.done=!x.done;persist()}draw()});
  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{sum=sum.filter(y=>y.id!==b.dataset.x);persist();draw()});
+ wireGrips($('#sumlist'),seq=>{const byId={};sum.forEach(x=>byId[x.id]=x);sum=seq.map(id=>byId[id]).filter(Boolean);persist();draw()});
  const cd=$('#clrd');if(cd)cd.onclick=()=>{sum=sum.filter(x=>!x.done);persist();draw()};
  const ca=$('#clra');if(ca)ca.onclick=()=>{clraOpen=true;clraTxt='';draw()};
  const ct=$('#clrat');if(ct)ct.oninput=()=>{clraTxt=ct.value;const ok=clraTxt.trim().toUpperCase()==='CLEAR',b=$('#clrago');if(b){b.classList.toggle('sec',!ok);b.style.opacity=ok?'':'.4'}};
@@ -300,20 +325,20 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
    if(sv&&dv){if(sv!==dv)meta.push('Servings '+fmtN(sv)+' \u2192 '+fmtN(dv));else if(sv!==1)meta.push('Servings '+fmtN(sv))}
    else if(f!==1)meta.push('Scaling \u00d7'+fmtN(f))}
   else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
-  let ch='<li class="card p"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div>';
+  let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+(sortC===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
   if(meta.length)ch+='<div class="src">'+meta.map(esc).join(' \u00b7 ')+'</div>';
   if(p.desc)ch+='<div class="src" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(p.desc).replace(/\n/g,'<br>')+'</div>';
   ch+='<div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div>';
   if(ct!=='list'&&ct!=='grocery'&&p.instr)ch+='<div class="src">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(p.instr).replace(/\n/g,'<br>')+'</div>';
   ch+='<button class="chip sm" data-pa="'+p.id+'">'+addLbl(p)+'</button><button class="lnk" data-par="'+p.id+'" style="padding:8px 4px 0">Archive</button></li>';return ch};
  [['lists','Lists','list','New list'],['groceries','Groceries','grocery','New grocery'],['recipes','Recipes','recipe','New recipe']].forEach(sc=>{
-  const lst=act.filter(p=>pSection(p)===sc[0]);
+  const lst=sortView(act.filter(p=>pSection(p)===sc[0]),sortC,p=>pTitle(p.name));
   h+='<h2>'+sc[1]+'</h2>';
-  if(lst.length)h+='<ul>'+lst.map(pCard).join('')+'</ul>';
+  if(lst.length)h+='<ul data-sec="'+sc[0]+'">'+lst.map(pCard).join('')+'</ul>';
   else h+='<div class="mu" style="margin:-4px 2px 14px">None yet.</div>';
   if(!edP)h+='<div style="margin:0 0 24px"><button class="btn sec" data-np="'+sc[2]+'" style="margin-top:0">'+sc[3]+'</button></div>'});
  if(arc.length&&!edP)h+='<h2>Archived</h2><ul>'+arc.map(p=>{const names=presetItems(p).map(it=>esc(itName(it))).join(' \u00b7 ');
-  return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="src">'+esc(TLBL[pType(p)])+'</div><div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pur="'+p.id+'">Restore</button></li>'}).join('')+'</ul>';
+  return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="src">'+esc(TLBL[pType(p)])+'</div><div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pur="'+p.id+'">Restore</button></li>'}).join('')+'</ul>';
  if(edP){const et=edP.type||'list',ef=et==='recipe'?(edP.dserv||1)/(edP.serv||1):(edP.mult||1);
   h+='<div class="card p" id="pedit"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'">'
   +'<label class="f">List type</label><div class="row add-kind">'+['list','instructions','grocery','grocery-instructions','recipe'].map(k=>'<button class="chip'+(et===k?' on':'')+'" data-pt="'+k+'">'+TLBL[k]+'</button>').join('')+'</div>'
@@ -343,6 +368,8 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   presetItems(p).forEach(it=>{const e=pQtyAny(p,it);addToSum(itName(it),p.name,e?{q:e.q*f,u:e.u}:null)});
   const sva=pServ(p),dva=pDserv(p);
   note=f===1?'Added to Sum.':(ct==='recipe'&&sva&&dva?'Added to Sum \u00b7 serves '+fmtN(dva)+'.':'Added to Sum at '+fmtN(f)+'\u00d7.')}draw()});
+ v.querySelectorAll('[data-psh]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.psh);if(p)sharePreset(p)});
+ v.querySelectorAll('ul[data-sec]').forEach(ul=>{const sec=ul.dataset.sec;wireGrips(ul,seq=>{const byId={};presets.forEach(p=>byId[p.id]=p);let p2=0;presets=presets.map(p=>pSection(p)===sec&&!p.arch?(byId[seq[p2++]]||p):p);persist();draw()})});
  v.querySelectorAll('[data-pt]').forEach(b=>b.onclick=()=>{edP.type=b.dataset.pt;draw()});
  const pn=$('#pn');if(pn)pn.oninput=()=>{edP.name=pn.value};
  const pdx=$('#pd');if(pdx)pdx.oninput=()=>{edP.desc=pdx.value};
@@ -393,6 +420,37 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   if(dirty){pcAsk=true;draw()}else{edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;draw()}};
  const pk=$('#pck');if(pk)pk.onclick=()=>{pcAsk=false;draw()};
  const pd=$('#pcd');if(pd)pd.onclick=()=>{edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;draw()}}
+/*SHARE IMAGE*/
+async function sharePreset(p){try{const ct=pType(p),f=pFactor(p);
+ const items=presetItems(p).map(it=>{const e=pQtyAny(p,it);return {n:itName(it),t:e?'('+fmtN(e.q*f)+(e.u?' '+e.u:'')+')':''}});
+ const meta=[];if(ct==='instructions'||ct==='grocery-instructions')meta.push(TLBL[ct]);
+ if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);if(sv&&dv){if(sv!==dv)meta.push('Servings '+fmtN(sv)+' \u2192 '+fmtN(dv));else if(sv!==1)meta.push('Servings '+fmtN(sv))}else if(f!==1)meta.push('Scaling \u00d7'+fmtN(f))}
+ else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
+ const W=1080,PAD=64,CW=W-PAD*2,cv=document.createElement('canvas'),cx=cv.getContext('2d');
+ try{await document.fonts.ready}catch(e2){}
+ const FF='DINish,-apple-system,system-ui,sans-serif';
+ const wrap=(text,font)=>{cx.font=font;const out=[];String(text).split('\n').forEach(par=>{const ws=par.split(/\s+/).filter(Boolean);if(!ws.length){out.push('');return}let line='';ws.forEach(wd=>{const t=line?line+' '+wd:wd;if(cx.measureText(t).width<=CW)line=t;else{if(line)out.push(line);line=wd}});if(line)out.push(line)});return out};
+ const ops=[];let y=PAD+42;
+ const push=(text,font,color,lh,gap)=>{wrap(text,font).forEach(ln=>{ops.push({ln,font,color,y});y+=lh});y+=gap};
+ push(pTitle(p.name),'700 46px '+FF,'#ececec',56,12);
+ if(meta.length)push(meta.join(' \u00b7 ').toUpperCase(),'600 20px '+FF,'#8c8c8c',28,18);
+ if(p.desc)push(p.desc,'400 26px '+FF,'#8c8c8c',36,18);
+ items.forEach(it=>{const lines=wrap(it.n,'400 30px '+FF);lines.forEach((ln,i)=>{ops.push({ln,font:'400 30px '+FF,color:'#ececec',y,qty:i===lines.length-1?it.t:''});y+=44})});
+ if(items.length)y+=6;
+ if(ct!=='list'&&ct!=='grocery'&&p.instr){push('Instructions','600 20px '+FF,'#8c8c8c',28,6);push(p.instr,'400 26px '+FF,'#8c8c8c',38,10)}
+ y+=70;
+ cv.width=W;cv.height=y;
+ const g=cx.createLinearGradient(0,0,0,cv.height);g.addColorStop(0,'#1c1c1c');g.addColorStop(1,'#121212');cx.fillStyle=g;cx.fillRect(0,0,W,cv.height);
+ cx.strokeStyle='#353535';cx.lineWidth=2;cx.strokeRect(1,1,W-2,cv.height-2);
+ ops.forEach(o=>{cx.font=o.font;cx.fillStyle=o.color;cx.fillText(o.ln,PAD,o.y);
+  if(o.qty){cx.fillStyle='#8c8c8c';cx.fillText('  '+o.qty,PAD+cx.measureText(o.ln).width+10,o.y)}});
+ cx.font='600 22px '+FF;cx.fillStyle='#8c8c8c';cx.textAlign='center';try{cx.letterSpacing='6px'}catch(e4){}
+ cx.fillText('L I S T O',W/2,y-26);
+ const b=await new Promise(res=>cv.toBlob(res,'image/png'));if(!b)throw new Error('blob');
+ const file=new File([b],'listo-'+(pTitle(p.name).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'list')+'.png',{type:'image/png'});
+ if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file]})}catch(e3){}}
+ else{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+}catch(e){note='Could not create the image. Try again.';draw()}}
 const dlFile=(name,text,type)=>{const b=new Blob([text],{type:type||'text/plain'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},500)};
 const backupFile=()=>JSON.stringify({app:'listo',format:'listo-backup',version:1,exported:new Date().toISOString(),components:comps,presets:presets,sum,settings:{theme:theme()}},null,2);
 function resetHtml(){const ok=rchk&&rtxt.trim().toUpperCase()==='RESET';
@@ -422,8 +480,9 @@ function drawSettings(v){const th=theme();let acct;
 function draw(top){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===page));
  const v=$('#view'),y=top?0:scrollY;
  if(page==='sum')drawSum(v);else if(page==='components')drawComponents(v);else drawSettings(v);
- scrollTo(0,y)}
+ sortUI();scrollTo(0,y)}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';draw(true)});
+$('#sortb').onclick=()=>{if(page==='sum'){sortS=(sortS+1)%SORTS.length;try{localStorage.setItem('listo.sort.s',String(sortS))}catch(e){}}else if(page==='components'){sortC=(sortC+1)%SORTS.length;try{localStorage.setItem('listo.sort.c',String(sortC))}catch(e){}}else return;draw()};
 $('#home').onclick=()=>{page='sum';note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';draw(true)};
 (function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}migrate()})();
 onAuthStateChanged(auth,u=>{user=u;if(unsub){unsub();unsub=null}
