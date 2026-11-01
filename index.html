@@ -163,14 +163,37 @@ function switchOwner(n){if(n===OWNER)return;
 const normName=s=>String(s||'').trim();
 function presetItems(p){if(Array.isArray(p.items))return p.items;return (p.ids||[]).map(id=>{const c=comps.find(c=>c.id===id);return c?c.name:null}).filter(Boolean)}
 const fmtN=n=>{const r=Math.round(n*100)/100;return String(r)};
-const itObj=it=>typeof it==='string'?{n:it,q:null,u:''}:{n:String(it&&it.n||''),q:(it&&typeof it.q==='number'&&isFinite(it.q)&&it.q>0)?it.q:null,u:String(it&&it.u||'')};
-const pObjs=p=>presetItems(p).map(itObj);
+const itName=it=>typeof it==='string'?it:String(it&&it.n||'');
+const normU=u=>String(u||'').trim().toLowerCase();
+const compatU=(a,b)=>{a=normU(a);b=normU(b);return a===b||a+'s'===b||a===b+'s'};
 const pType=p=>p.type==='recipe'?'recipe':(p.type==='instructions'?'instructions':'list');
 const pMult=p=>(typeof p.mult==='number'&&isFinite(p.mult)&&p.mult>0)?p.mult:1;
+const pServ=p=>(typeof p.serv==='number'&&isFinite(p.serv)&&p.serv>0)?p.serv:1;
+const pDserv=p=>(typeof p.dserv==='number'&&isFinite(p.dserv)&&p.dserv>0)?p.dserv:(pType(p)==='recipe'&&typeof p.mult==='number'&&isFinite(p.mult)&&p.mult>0?p.mult:pServ(p));
+const pFactor=p=>pType(p)==='recipe'?pDserv(p)/pServ(p):pMult(p);
 const TLBL={list:'List',instructions:'List with instructions',recipe:'Recipe'};
-const qtyAt=(it,m)=>{const o=itObj(it);return o.q===null?'':fmtN(o.q*m)+(o.u?' '+o.u:'')};
+const pQty=(p,name)=>{const e=(p.qty||{})[String(name).toLowerCase()];return (e&&typeof e.q==='number'&&isFinite(e.q)&&e.q>0)?{q:e.q,u:String(e.u||'')}:null};
+const pQtyAny=(p,it)=>{const e=pQty(p,itName(it));if(e)return e;const o=(typeof it==='object'&&it)?it:null;return (o&&typeof o.q==='number'&&isFinite(o.q)&&o.q>0)?{q:o.q,u:String(o.u||'')}:null};
+const addLbl=p=>{const ct=pType(p),f=pFactor(p);if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);return sv!==dv?'Add all to Sum \u00b7 serves '+fmtN(dv):'Add all to Sum'}return f!==1?'Add all to Sum at '+fmtN(f)+'\u00d7':'Add all to Sum'};
+function qtyLine(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
+ const srcs=(x.src||[]).map(String),legacy=x.qty?String(x.qty):'';
+ if(cs.length>1&&!cs.every(c=>compatU(c.u,cs[0].u))){
+  const cov=new Set(cs.map(c=>String(c.s).toLowerCase())),others=srcs.filter(s=>!cov.has(s.toLowerCase()));
+  return cs.map(c=>esc(fmtN(c.q)+(c.u?' '+c.u:''))+' from '+esc(c.s)).join(' + ')+(others.length?' \u00b7 from '+others.map(esc).join(' \u00b7 '):'')+(legacy?' \u00b7 '+esc(legacy):'')}
+ let h='';
+ if(cs.length){const tot=cs.reduce((a,c)=>a+c.q,0),uu=cs.map(c=>String(c.u||'')).sort((a,b)=>b.length-a.length)[0];h=esc(fmtN(tot)+(uu?' '+uu:''))}
+ if(legacy)h=h?h+' \u00b7 '+esc(legacy):esc(legacy);
+ if(srcs.length)h=h?h+' \u00b7 from '+srcs.map(esc).join(' \u00b7 '):'from '+srcs.map(esc).join(' \u00b7 ');
+ return h}
 function migrate(){let ch=false;presets.forEach(p=>{if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}});if(comps.length){comps.forEach(c=>{const ex=presets.find(p=>p.id==='mig-'+c.id);if(ex){if(!ex.items.some(n=>n.toLowerCase()===c.name.toLowerCase()))ex.items.push(c.name)}else presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
-function addToSum(name,src,qty){name=normName(name);if(!name)return;src=normName(src);qty=normName(qty);const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ex){const was=ex.done;if(was)ex.done=false;let added=false;if(src&&!(ex.src||[]).some(s=>String(s).toLowerCase()===src.toLowerCase())){ex.src=(ex.src||[]).concat([src]);added=true}note=was?'Back on the list.':(added?'':'Already in Sum.')}else{const it={id:uid(),name,done:false,at:Date.now()};if(src)it.src=[src];if(qty)it.qty=qty;sum.push(it);note=''}persist()}
+function addToSum(name,src,qc){name=normName(name);if(!name)return;src=normName(src);const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());
+ if(ex){if(src&&!(ex.src||[]).length&&!(ex.qtys||[]).length)ex.keepManual=true;
+  const was=ex.done;if(was)ex.done=false;let added=false;
+  if(src&&!(ex.src||[]).some(s=>String(s).toLowerCase()===src.toLowerCase())){ex.src=(ex.src||[]).concat([src]);added=true}
+  if(src&&qc){ex.qtys=(ex.qtys||[]).filter(c=>String(c.s).toLowerCase()!==src.toLowerCase());ex.qtys.push({s:src,q:qc.q,u:String(qc.u||'')});added=true}
+  note=was?'Back on the list.':(added?'':'Already in Sum.')}
+ else{const it={id:uid(),name,done:false,at:Date.now()};if(src)it.src=[src];if(src&&qc)it.qtys=[{s:src,q:qc.q,u:String(qc.u||'')}];sum.push(it);note=''}
+ persist()}
 /*REMOVE PRESET FROM SUM*/
 function contribNames(){const m={},ord=[];sum.forEach(x=>{(x.src||[]).forEach(s=>{const k=String(s).toLowerCase();if(!m[k]){m[k]={key:k,name:String(s),total:0,only:0,shared:0};ord.push(k)}m[k].total++;if(x.src.length===1)m[k].only++;else m[k].shared++})});return ord.map(k=>m[k])}
 function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px"><div>Remove a preset from Sum</div><div class="mu">Lines only that preset added are removed. Lines it shares with other presets stay, without its label. The saved preset stays in Components.</div>'+cn.map(c=>'<div class="row" style="margin-top:10px"><button class="btn sec" data-rp="'+esc(c.key)+'" style="flex:1;margin-top:0;text-align:left">'+esc(c.name)+' \u00b7 '+c.total+(c.total===1?' line':' lines')+'</button></div>').join('')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>';
@@ -181,7 +204,7 @@ const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  if(!sum.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
- else{h+='<ul>'+sum.map(x=>{const sub=[];if(x.qty)sub.push(esc(x.qty));if(x.src&&x.src.length)sub.push('from '+x.src.map(esc).join(' \u00b7 '));return '<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+(sub.length?'<div class="src">'+sub.join(' \u00b7 ')+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>'}).join('')+'</ul>';
+ else{h+='<ul>'+sum.map(x=>{const sub=qtyLine(x);return '<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+(sub?'<div class="src">'+sub+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>'}).join('')+'</ul>';
   const cn=contribNames();if(rpSel&&!cn.some(c=>c.key===rpSel))rpSel='';if(!cn.length){rpOpen=false;rpSel=''}
   if(rpOpen)h+=rpHtml(cn);
   else if(!clraOpen)h+=(cn.length?'<div class="row" style="margin-top:14px"><button class="btn sec" id="rpo" style="flex:1;margin-top:0">Remove a preset</button></div>':'')+'<div class="row" style="margin-top:'+(cn.length?'8':'14')+'px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>';
@@ -201,62 +224,88 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  v.querySelectorAll('[data-rp]').forEach(b=>b.onclick=()=>{rpSel=b.dataset.rp;draw()});
  const rpno=$('#rpno');if(rpno)rpno.onclick=()=>{rpOpen=false;rpSel='';draw()};
  const rpgo=$('#rpgo');if(rpgo)rpgo.onclick=()=>{const k=rpSel;const c=contribNames().find(x=>x.key===k),nm=c?c.name:k;
-  sum=sum.filter(x=>{if(!x.src||!x.src.length)return true;const kept=x.src.filter(s2=>String(s2).toLowerCase()!==k);if(kept.length===x.src.length)return true;if(!kept.length)return false;x.src=kept;return true});
+  sum=sum.filter(x=>{const hasS=(x.src||[]).some(s2=>String(s2).toLowerCase()===k),hasC=(x.qtys||[]).some(c2=>String(c2.s).toLowerCase()===k);
+   if(!hasS&&!hasC)return true;
+   x.src=(x.src||[]).filter(s2=>String(s2).toLowerCase()!==k);
+   x.qtys=(x.qtys||[]).filter(c2=>String(c2.s).toLowerCase()!==k);
+   if(!x.src.length&&!x.qtys.length&&!x.keepManual)return false;
+   return true});
   rpOpen=false;rpSel='';note='Removed '+nm+' from Sum.';persist();draw()}}
 function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div><div class="msg">'+esc(note)+'</div>';
  h+='<h2>Presets</h2>';
- if(presets.length)h+='<ul>'+presets.map(p=>{const cm=pMult(p),ct=pType(p);
-  const names=pObjs(p).map(o=>esc(o.n)+(o.q!==null?' ('+fmtN(o.q*cm)+(o.u?' '+esc(o.u):'')+')':'')).join(' \u00b7 ');
-  const meta=[];if(ct!=='list')meta.push(TLBL[ct]);if(cm!==1)meta.push((ct==='recipe'?'Servings':'Multiplier')+' '+fmtN(cm)+'\u00d7');
+ const act=presets.filter(p=>!p.arch),arc=presets.filter(p=>p.arch);
+ if(act.length)h+='<ul>'+act.map(p=>{const ct=pType(p),f=pFactor(p);
+  const names=presetItems(p).map(it=>{const e=pQtyAny(p,it);return esc(itName(it))+(e?' ('+fmtN(e.q*f)+(e.u?' '+esc(e.u):'')+')':'')}).join(' \u00b7 ');
+  const meta=[];if(ct!=='list')meta.push(TLBL[ct]);
+  if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);if(sv!==dv)meta.push('Servings '+fmtN(sv)+' \u2192 '+fmtN(dv));else if(sv!==1)meta.push('Servings '+fmtN(sv))}
+  else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
   let ch='<li class="card p"><div class="vt"><div class="t"><b>'+esc(p.name)+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div>';
   if(meta.length)ch+='<div class="src">'+meta.map(esc).join(' \u00b7 ')+'</div>';
   if(p.desc)ch+='<div class="src" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(p.desc).replace(/\n/g,'<br>')+'</div>';
   ch+='<div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div>';
   if(ct!=='list'&&p.instr)ch+='<div class="src">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(p.instr).replace(/\n/g,'<br>')+'</div>';
-  ch+='<button class="chip sm" data-pa="'+p.id+'">Add all to Sum'+(cm!==1?' at '+fmtN(cm)+'\u00d7':'')+'</button></li>';return ch}).join('')+'</ul>';
- else if(!edP)h+='<div class="empty">No presets yet.<br>Make a go-to list once, then add the whole list to Sum anytime.</div>';
- if(edP){const em=edP.mult||1,et=edP.type||'list';
+  ch+='<button class="chip sm" data-pa="'+p.id+'">'+addLbl(p)+'</button><button class="lnk" data-par="'+p.id+'" style="padding:8px 4px 0">Archive</button></li>';return ch}).join('')+'</ul>';
+ else if(!edP&&!arc.length)h+='<div class="empty">No presets yet.<br>Make a go-to list once, then add the whole list to Sum anytime.</div>';
+ if(arc.length&&!edP)h+='<h2>Archived</h2><ul>'+arc.map(p=>{const names=presetItems(p).map(it=>esc(itName(it))).join(' \u00b7 ');
+  return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(p.name)+'</b></div><div class="vt-r"><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="src">'+esc(TLBL[pType(p)])+'</div><div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pur="'+p.id+'">Restore</button></li>'}).join('')+'</ul>';
+ if(edP){const et=edP.type||'list',ef=et==='recipe'?(edP.dserv||1)/(edP.serv||1):(edP.mult||1);
   h+='<div class="card p"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'">'
   +'<label class="f">List type</label><div class="row add-kind">'+['list','instructions','recipe'].map(k=>'<button class="chip'+(et===k?' on':'')+'" data-pt="'+k+'">'+TLBL[k]+'</button>').join('')+'</div>'
   +'<label class="f">Description</label><textarea id="pd" rows="2" autocapitalize="sentences">'+esc(edP.desc||'')+'</textarea>'
   +(et!=='list'?'<label class="f">Instructions</label><textarea id="pin" rows="4" autocapitalize="sentences">'+esc(edP.instr||'')+'</textarea>':'')
-  +'<label class="f">'+(et==='recipe'?'Servings':'Multiplier')+'</label><div class="row" style="align-items:center"><button class="chip" id="mdn" style="flex:0 0 72px">&minus;</button><div style="flex:1;text-align:center;font-weight:600">'+fmtN(em)+'\u00d7</div><button class="chip" id="mup" style="flex:0 0 72px">+</button></div><div class="mu" style="margin-top:6px">Scales every quantity. Items are saved at 1\u00d7.</div>'
+  +(et==='recipe'
+   ?'<label class="f">Original servings</label><div class="row" style="align-items:center"><button class="chip" id="osd" style="flex:0 0 72px">&minus;</button><div style="flex:1;text-align:center;font-weight:600">'+fmtN(edP.serv||1)+'</div><button class="chip" id="osu" style="flex:0 0 72px">+</button></div>'
+    +'<label class="f">Desired servings</label><div class="row" style="align-items:center"><button class="chip" id="dsd" style="flex:0 0 72px">&minus;</button><div style="flex:1;text-align:center;font-weight:600">'+fmtN(edP.dserv||1)+'</div><button class="chip" id="dsu" style="flex:0 0 72px">+</button></div><div class="mu" style="margin-top:6px">'+(ef!==1?'Quantities are saved at the original servings, cooked at \u00d7'+fmtN(ef)+'.':'Quantities are saved at the original servings.')+'</div>'
+   :'<label class="f">Multiplier</label><div class="row" style="align-items:center"><button class="chip" id="mdn" style="flex:0 0 72px">&minus;</button><div style="flex:1;text-align:center;font-weight:600">'+fmtN(edP.mult||1)+'\u00d7</div><button class="chip" id="mup" style="flex:0 0 72px">+</button></div><div class="mu" style="margin-top:6px">Scales every quantity. Items are saved at 1\u00d7.</div>')
   +'<label class="f">Items</label>'
-  +(edP.items.length?edP.items.map((it,i)=>{const o=itObj(it),qd=o.q===null?'':(em!==1?fmtN(o.q)+' \u00d7 '+fmtN(em)+' = '+fmtN(o.q*em):fmtN(o.q))+(o.u?' '+o.u:'');return '<div class="vt"><div class="t" style="flex:1;min-width:24%;overflow-wrap:anywhere;line-height:1.5">'+esc(o.n)+(qd?'<div class="src">'+esc(qd)+'</div>':'')+'</div><div class="vt-r"><button class="ic" data-pr="'+i+'" aria-label="Remove">'+IC.x+'</button></div></div>'}).join(''):'<div class="mu">Nothing in this preset yet.</div>')
+  +(edP.items.length?edP.items.map((n,i)=>{const e=(edP.qty||{})[String(n).toLowerCase()],qd=e?((ef!==1?fmtN(e.q)+' \u00d7 '+fmtN(ef)+' = '+fmtN(e.q*ef):fmtN(e.q))+(e.u?' '+e.u:'')):'';return '<div class="vt"><div class="t" style="flex:1;min-width:24%;overflow-wrap:anywhere;line-height:1.5">'+esc(n)+(qd?'<div class="src">'+esc(qd)+'</div>':'')+'</div><div class="vt-r"><button class="ic" data-pr="'+i+'" aria-label="Remove">'+IC.x+'</button></div></div>'}).join(''):'<div class="mu">Nothing in this preset yet.</div>')
   +'<div class="add"><input id="pi" autocapitalize="sentences" spellcheck="false" value="'+esc(piVal)+'"></div>'
-  +'<div class="row" style="margin-top:8px;align-items:flex-end"><div style="flex:1;min-width:0"><label class="f" style="margin-top:0">Qty at 1\u00d7</label><input id="pq" inputmode="decimal" autocomplete="off" style="height:44px;min-height:44px" value="'+esc(piQ)+'"></div><div style="flex:1.4;min-width:0"><label class="f" style="margin-top:0">Unit</label><input id="pu" autocapitalize="off" spellcheck="false" style="height:44px;min-height:44px" value="'+esc(piU)+'"></div><button class="ic" id="pib" aria-label="Add item">'+IC.plus+'</button></div>'
+  +'<div class="row" style="margin-top:8px;align-items:flex-end"><div style="flex:1;min-width:0"><label class="f" style="margin-top:0">'+(et==='recipe'?'Qty at original servings':'Qty at 1\u00d7')+'</label><input id="pq" inputmode="decimal" autocomplete="off" style="height:44px;min-height:44px" value="'+esc(piQ)+'"></div><div style="flex:1.4;min-width:0"><label class="f" style="margin-top:0">Unit</label><input id="pu" autocapitalize="off" spellcheck="false" style="height:44px;min-height:44px" value="'+esc(piU)+'"></div><button class="ic" id="pib" aria-label="Add item">'+IC.plus+'</button></div>'
   +(pcAsk?'<div style="margin-top:12px">Discard your unsaved changes?</div><div class="row" style="margin-top:10px"><button class="btn sec" id="pck" style="flex:1;margin-top:0">Keep editing</button><button class="btn sec" id="pcd" style="flex:1;margin-top:0">Discard changes</button></div>':'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div>')+'</div>'}
  else h+='<button class="btn sec" id="np">New preset</button>';
  v.innerHTML=h;
- const np=$('#np');if(np)np.onclick=()=>{edP={id:'',name:'',items:[],type:'list',desc:'',instr:'',mult:1};piVal='';piQ='';piU='';note='';pcAsk=false;draw()};
- v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);edP={id:p.id,name:p.name,items:presetItems(p).slice(),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p)};piVal='';piQ='';piU='';note='';pcAsk=false;draw()});
+ const np=$('#np');if(np)np.onclick=()=>{edP={id:'',name:'',items:[],type:'list',desc:'',instr:'',mult:1,serv:1,dserv:1,qty:{}};piVal='';piQ='';piU='';note='';pcAsk=false;draw()};
+ v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);edP={id:p.id,name:p.name,items:presetItems(p).map(itName),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p),serv:pServ(p),dserv:pDserv(p),qty:{}};
+  presetItems(p).forEach(it=>{const e=pQtyAny(p,it);if(e)edP.qty[itName(it).toLowerCase()]={q:e.q,u:e.u}});
+  piVal='';piQ='';piU='';note='';pcAsk=false;draw()});
  v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{presets=presets.filter(y=>y.id!==b.dataset.px);persist();draw()});
- v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){const m=pMult(p);pObjs(p).forEach(o=>addToSum(o.n,p.name,qtyAt(o,m)));note=m!==1?'Added to Sum at '+fmtN(m)+'\u00d7.':'Added to Sum.'}draw()});
+ v.querySelectorAll('[data-par]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.par);if(p){p.arch=Date.now();note='Archived '+p.name+'. Find it under Archived.';persist()}draw()});
+ v.querySelectorAll('[data-pur]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pur);if(p){delete p.arch;note='Restored '+p.name+'.';persist()}draw()});
+ v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){const f=pFactor(p),ct=pType(p);
+  presetItems(p).forEach(it=>{const e=pQtyAny(p,it);addToSum(itName(it),p.name,e?{q:e.q*f,u:e.u}:null)});
+  note=f===1?'Added to Sum.':(ct==='recipe'?'Added to Sum \u00b7 serves '+fmtN(pDserv(p))+'.':'Added to Sum at '+fmtN(f)+'\u00d7.')}draw()});
  v.querySelectorAll('[data-pt]').forEach(b=>b.onclick=()=>{edP.type=b.dataset.pt;draw()});
  const pn=$('#pn');if(pn)pn.oninput=()=>{edP.name=pn.value};
  const pdx=$('#pd');if(pdx)pdx.oninput=()=>{edP.desc=pdx.value};
  const pix=$('#pin');if(pix)pix.oninput=()=>{edP.instr=pix.value};
  const mdn=$('#mdn');if(mdn)mdn.onclick=()=>{edP.mult=Math.max(.5,Math.round(((edP.mult||1)-.5)*10)/10);draw()};
  const mup=$('#mup');if(mup)mup.onclick=()=>{edP.mult=Math.min(10,Math.round(((edP.mult||1)+.5)*10)/10);draw()};
+ const osd=$('#osd');if(osd)osd.onclick=()=>{edP.serv=Math.max(1,(edP.serv||1)-1);draw()};
+ const osu=$('#osu');if(osu)osu.onclick=()=>{edP.serv=Math.min(48,(edP.serv||1)+1);draw()};
+ const dsd=$('#dsd');if(dsd)dsd.onclick=()=>{edP.dserv=Math.max(1,(edP.dserv||1)-1);draw()};
+ const dsu=$('#dsu');if(dsu)dsu.onclick=()=>{edP.dserv=Math.min(48,(edP.dserv||1)+1);draw()};
  const pqx=$('#pq');if(pqx){pqx.oninput=()=>{piQ=pqx.value}};
  const pux=$('#pu');if(pux){pux.oninput=()=>{piU=pux.value}};
  const pi=$('#pi');if(pi){pi.oninput=()=>{piVal=pi.value};const addIt=()=>{const nm=normName(pi.value);if(!nm)return;
   const qv=piQ.trim().replace(',','.'),un=normName(piU);let qn=null;
   if(qv!==''){qn=Number(qv);if(!isFinite(qn)||qn<=0){note='Quantity needs to be a number.';draw();return}}
   if(un&&qn===null){note='Add a quantity to use a unit.';draw();return}
-  if(edP.items.some(it=>itObj(it).n.toLowerCase()===nm.toLowerCase()))note='Already in this preset.';
-  else{edP.items.push(qn===null?nm:{n:nm,q:qn,u:un});note=''}
+  if(edP.items.some(n2=>n2.toLowerCase()===nm.toLowerCase()))note='Already in this preset.';
+  else{edP.items.push(nm);if(qn!==null)edP.qty[nm.toLowerCase()]={q:qn,u:un};note=''}
   piVal='';piQ='';piU='';pcAsk=false;draw()};
   $('#pib').onclick=addIt;pi.onkeydown=e=>{if(e.key==='Enter')addIt()};
   if(pqx)pqx.onkeydown=e=>{if(e.key==='Enter')addIt()};if(pux)pux.onkeydown=e=>{if(e.key==='Enter')addIt()}};
- v.querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{edP.items.splice(+b.dataset.pr,1);pcAsk=false;draw()});
+ v.querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{const nm2=edP.items[+b.dataset.pr];edP.items.splice(+b.dataset.pr,1);if(nm2&&edP.qty)delete edP.qty[String(nm2).toLowerCase()];pcAsk=false;draw()});
  const ps=$('#ps');if(ps)ps.onclick=()=>{const nm=normName(edP.name);if(!nm){note='Name the preset first.';draw();return}
-  const rec={name:nm,type:edP.type||'list',desc:(edP.desc||'').trim(),instr:(edP.instr||'').trim(),mult:edP.mult||1,items:edP.items.slice()};
-  if(edP.id){const p=presets.find(y=>y.id===edP.id);if(p){p.name=rec.name;p.type=rec.type;p.desc=rec.desc;p.instr=rec.instr;p.mult=rec.mult;p.items=rec.items}}
-  else presets.push(Object.assign({id:uid(),at:Date.now()},rec));
+  const rec={name:nm,type:edP.type||'list',desc:(edP.desc||'').trim(),instr:(edP.instr||'').trim(),mult:edP.mult||1,serv:edP.serv||1,dserv:edP.dserv||1,items:edP.items.slice(),qty:{}};
+  Object.keys(edP.qty||{}).forEach(k=>{if(rec.items.some(n2=>n2.toLowerCase()===k))rec.qty[k]=edP.qty[k]});
+  if(edP.id){const p=presets.find(y=>y.id===edP.id);if(p){p.name=rec.name;p.type=rec.type;p.desc=rec.desc;p.instr=rec.instr;p.mult=rec.mult;p.serv=rec.serv;p.dserv=rec.dserv;p.items=rec.items;if(Object.keys(rec.qty).length)p.qty=rec.qty;else delete p.qty}}
+  else{if(!Object.keys(rec.qty).length)delete rec.qty;presets.push(Object.assign({id:uid(),at:Date.now()},rec))}
   edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;persist();draw()};
- const pc=$('#pc');if(pc)pc.onclick=()=>{const o=edP.id?presets.find(y=>y.id===edP.id):null,oi=o?pObjs(o):[],ni=edP.items.map(itObj);
-  const dirty=normName(edP.name)!==(o?o.name:'')||(edP.type||'list')!==(o?pType(o):'list')||(edP.desc||'').trim()!==(o?(o.desc||'').trim():'')||(edP.instr||'').trim()!==(o?(o.instr||'').trim():'')||(edP.mult||1)!==(o?pMult(o):1)||ni.length!==oi.length||ni.some((it,i)=>it.n!==oi[i].n||it.q!==oi[i].q||it.u!==oi[i].u);
+ const pc=$('#pc');if(pc)pc.onclick=()=>{const o=edP.id?presets.find(y=>y.id===edP.id):null,onames=o?presetItems(o).map(itName):[],oq={};
+  if(o)presetItems(o).forEach(it=>{const e=pQtyAny(o,it);if(e)oq[itName(it).toLowerCase()]={q:e.q,u:e.u}});
+  const nq={};Object.keys(edP.qty||{}).forEach(k=>{if(edP.items.some(n2=>n2.toLowerCase()===k))nq[k]=edP.qty[k]});
+  const dirty=normName(edP.name)!==(o?o.name:'')||(edP.type||'list')!==(o?pType(o):'list')||(edP.desc||'').trim()!==(o?(o.desc||'').trim():'')||(edP.instr||'').trim()!==(o?(o.instr||'').trim():'')||(edP.mult||1)!==(o?pMult(o):1)||(edP.serv||1)!==(o?pServ(o):1)||(edP.dserv||1)!==(o?pDserv(o):1)||edP.items.length!==onames.length||edP.items.some((n2,i)=>n2!==onames[i])||canon(nq)!==canon(oq);
   if(dirty){pcAsk=true;draw()}else{edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;draw()}};
  const pk=$('#pck');if(pk)pk.onclick=()=>{pcAsk=false;draw()};
  const pd=$('#pcd');if(pd)pd.onclick=()=>{edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;draw()}}
