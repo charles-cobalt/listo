@@ -284,7 +284,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);const svr=pServ(p);edP={id:p.id,name:p.name,items:presetItems(p).map(itName),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p),serv:svr||1,dserv:pDserv(p)||Math.max(1,Math.round(pMult(p)*(svr||1))),servSet:!!svr,qty:{}};
   presetItems(p).forEach(it=>{const e=pQtyAny(p,it);if(e)edP.qty[itName(it).toLowerCase()]={q:e.q,u:e.u}});
   piVal='';piQ='';piU='';note='';pcAsk=false;draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()});
- v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id!==b.dataset.px);if(!p)return;presets=presets.filter(y=>y.id!==b.dataset.px);const k=normName(p.name).toLowerCase(),t=k?dropSrc(k):0;note='Deleted '+p.name+'.'+(t?' Removed it from Sum too.':'');persist();draw()});
+ v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.px);if(!p)return;presets=presets.filter(y=>y.id!==b.dataset.px);const k=normName(p.name).toLowerCase(),t=k?dropSrc(k):0;note='Deleted '+p.name+'.'+(t?' Removed it from Sum too.':'');persist();draw()});
  v.querySelectorAll('[data-par]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.par);if(p){p.arch=Date.now();note='Archived '+p.name+'. Find it under Archived.';persist()}draw()});
  v.querySelectorAll('[data-pur]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pur);if(p){delete p.arch;note='Restored '+p.name+'.';persist()}draw()});
  v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){const f=pFactor(p),ct=pType(p);
