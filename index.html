@@ -218,7 +218,7 @@ function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px
  const c=cn.find(x=>x.key===rpSel);if(!c){rpSel='';return ''}
  return '<div class="card p" style="margin-top:14px"><div>Remove '+esc(c.name)+' from Sum?</div><div class="mu">'+(c.only?'This removes the '+c.only+(c.only===1?' line':' lines')+' that only '+esc(c.name)+' added. ':'')+(c.shared?c.shared+' shared '+(c.shared===1?'line stays':'lines stay')+' for your other presets, without the '+esc(c.name)+' label. ':'')+'The saved preset stays in Components.</div><div class="row" style="margin-top:10px"><button class="btn" id="rpgo" style="flex:1;margin-top:0">Remove '+esc(c.name)+'</button><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>'}
 /*IMPORT*/
-const AIM='gemini-3.8-flash';let _aiM=null;
+const AIM='gemini-3.5-flash';let _aiM=null;
 const aiModel=()=>{if(!_aiM)_aiM=getGenerativeModel(getAI(fapp,{backend:new GoogleAIBackend()}),{model:AIM,generationConfig:{responseMimeType:'application/json'}});return _aiM};
 const b64File=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('read'));r.readAsDataURL(f)});
 const imgPart=async f=>{const bmp=await createImageBitmap(f);const s=Math.min(1,1568/Math.max(bmp.width,bmp.height));
