@@ -32,6 +32,7 @@ li .t input{width:100%}
 .ic{width:34px;height:44px;flex:none;color:#6a6a6a;display:flex;align-items:center;justify-content:center}.ic:active{color:#f2f2f2}.ic svg{width:18px;height:18px}.grip{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}li.drag{position:relative;z-index:5;border-color:#8c8c8c;opacity:.92}
 .add{display:flex;align-items:center;gap:6px;margin-top:12px}.add input{height:44px}
 input{width:100%;background:#141414;border:1px solid #333;color:var(--tx);padding:12px;font:inherit;outline:none;-webkit-appearance:none}input:focus{border-color:#8c8c8c}
+textarea{width:100%;background:#141414;border:1px solid #333;color:var(--tx);padding:12px;font:inherit;outline:none;-webkit-appearance:none;resize:vertical;min-height:64px;line-height:1.5;font-family:inherit}textarea:focus{border-color:#8c8c8c}
 .empty{text-align:center;color:var(--mu);padding:40px 20px}
 .row{display:flex;gap:8px}.row>*{flex:1}.chip{flex:1;text-align:center;background:var(--grad-mid);border:1px solid #3a3a3a;color:#d8d8d8;padding:11px 8px}.tag{flex:0 1 auto;min-width:0;max-width:32%;overflow-wrap:anywhere;text-align:right;line-height:1.8;font-size:9px;letter-spacing:.08em;color:var(--mu);text-transform:uppercase;font-weight:600}.chip.sm{font-size:10px;white-space:nowrap;padding:11px 2px}.add-kind .chip,.add-cadence .chip{display:flex;align-items:center;justify-content:center;font-size:10px;line-height:12px;letter-spacing:-.02em;text-transform:uppercase;white-space:normal;box-sizing:border-box;height:40px;min-height:40px;padding:2px 1px}.chip.on{background:var(--grad-hi);border-color:#d8d8d8;color:#111;font-weight:700}
 .lgrid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
@@ -93,7 +94,7 @@ const IC={
  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M6 6l12 12M18 6L6 18"/></svg>',
  pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20l4-1L19.5 7.5a2.1 2.1 0 0 0-3-3L5 16l-1 4z"/></svg>',
  chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
-let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edP=null,nsVal='',piVal='',rstOpen=false,rchk=false,rtxt='',rnote='',clraOpen=false,clraTxt='',pcAsk=false,rpOpen=false,rpSel='';
+let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edP=null,nsVal='',piVal='',piQ='',piU='',rstOpen=false,rchk=false,rtxt='',rnote='',clraOpen=false,clraTxt='',pcAsk=false,rpOpen=false,rpSel='';
 const theme=()=>localStorage.getItem(TK)||'auto';
 function applyTheme(){const t=theme(),d=t==='day'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.toggle('day',d);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#ededed':'#121212'}
 matchMedia('(prefers-color-scheme: light)').addEventListener&&matchMedia('(prefers-color-scheme: light)').addEventListener('change',applyTheme);
@@ -161,8 +162,15 @@ function switchOwner(n){if(n===OWNER)return;
 /*DATA*/
 const normName=s=>String(s||'').trim();
 function presetItems(p){if(Array.isArray(p.items))return p.items;return (p.ids||[]).map(id=>{const c=comps.find(c=>c.id===id);return c?c.name:null}).filter(Boolean)}
+const fmtN=n=>{const r=Math.round(n*100)/100;return String(r)};
+const itObj=it=>typeof it==='string'?{n:it,q:null,u:''}:{n:String(it&&it.n||''),q:(it&&typeof it.q==='number'&&isFinite(it.q)&&it.q>0)?it.q:null,u:String(it&&it.u||'')};
+const pObjs=p=>presetItems(p).map(itObj);
+const pType=p=>p.type==='recipe'?'recipe':(p.type==='instructions'?'instructions':'list');
+const pMult=p=>(typeof p.mult==='number'&&isFinite(p.mult)&&p.mult>0)?p.mult:1;
+const TLBL={list:'List',instructions:'List with instructions',recipe:'Recipe'};
+const qtyAt=(it,m)=>{const o=itObj(it);return o.q===null?'':fmtN(o.q*m)+(o.u?' '+o.u:'')};
 function migrate(){let ch=false;presets.forEach(p=>{if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}});if(comps.length){comps.forEach(c=>{const ex=presets.find(p=>p.id==='mig-'+c.id);if(ex){if(!ex.items.some(n=>n.toLowerCase()===c.name.toLowerCase()))ex.items.push(c.name)}else presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
-function addToSum(name,src){name=normName(name);if(!name)return;src=normName(src);const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ex){const was=ex.done;if(was)ex.done=false;let added=false;if(src&&!(ex.src||[]).some(s=>String(s).toLowerCase()===src.toLowerCase())){ex.src=(ex.src||[]).concat([src]);added=true}note=was?'Back on the list.':(added?'':'Already in Sum.')}else{const it={id:uid(),name,done:false,at:Date.now()};if(src)it.src=[src];sum.push(it);note=''}persist()}
+function addToSum(name,src,qty){name=normName(name);if(!name)return;src=normName(src);qty=normName(qty);const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ex){const was=ex.done;if(was)ex.done=false;let added=false;if(src&&!(ex.src||[]).some(s=>String(s).toLowerCase()===src.toLowerCase())){ex.src=(ex.src||[]).concat([src]);added=true}note=was?'Back on the list.':(added?'':'Already in Sum.')}else{const it={id:uid(),name,done:false,at:Date.now()};if(src)it.src=[src];if(qty)it.qty=qty;sum.push(it);note=''}persist()}
 /*REMOVE PRESET FROM SUM*/
 function contribNames(){const m={},ord=[];sum.forEach(x=>{(x.src||[]).forEach(s=>{const k=String(s).toLowerCase();if(!m[k]){m[k]={key:k,name:String(s),total:0,only:0,shared:0};ord.push(k)}m[k].total++;if(x.src.length===1)m[k].only++;else m[k].shared++})});return ord.map(k=>m[k])}
 function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px"><div>Remove a preset from Sum</div><div class="mu">Lines only that preset added are removed. Lines it shares with other presets stay, without its label. The saved preset stays in Components.</div>'+cn.map(c=>'<div class="row" style="margin-top:10px"><button class="btn sec" data-rp="'+esc(c.key)+'" style="flex:1;margin-top:0;text-align:left">'+esc(c.name)+' \u00b7 '+c.total+(c.total===1?' line':' lines')+'</button></div>').join('')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>';
@@ -173,7 +181,7 @@ const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  if(!sum.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
- else{h+='<ul>'+sum.map(x=>'<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+(x.src&&x.src.length?'<div class="src">from '+x.src.map(esc).join(' \u00b7 ')+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>').join('')+'</ul>';
+ else{h+='<ul>'+sum.map(x=>{const sub=[];if(x.qty)sub.push(esc(x.qty));if(x.src&&x.src.length)sub.push('from '+x.src.map(esc).join(' \u00b7 '));return '<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+(sub.length?'<div class="src">'+sub.join(' \u00b7 ')+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>'}).join('')+'</ul>';
   const cn=contribNames();if(rpSel&&!cn.some(c=>c.key===rpSel))rpSel='';if(!cn.length){rpOpen=false;rpSel=''}
   if(rpOpen)h+=rpHtml(cn);
   else if(!clraOpen)h+=(cn.length?'<div class="row" style="margin-top:14px"><button class="btn sec" id="rpo" style="flex:1;margin-top:0">Remove a preset</button></div>':'')+'<div class="row" style="margin-top:'+(cn.length?'8':'14')+'px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>';
@@ -197,25 +205,61 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
   rpOpen=false;rpSel='';note='Removed '+nm+' from Sum.';persist();draw()}}
 function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div><div class="msg">'+esc(note)+'</div>';
  h+='<h2>Presets</h2>';
- if(presets.length)h+='<ul>'+presets.map(p=>{const names=presetItems(p).map(esc).join(' \u00b7 ');
-  return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(p.name)+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="mu" style="margin:2px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pa="'+p.id+'">Add all to Sum</button></li>'}).join('')+'</ul>';
+ if(presets.length)h+='<ul>'+presets.map(p=>{const cm=pMult(p),ct=pType(p);
+  const names=pObjs(p).map(o=>esc(o.n)+(o.q!==null?' ('+fmtN(o.q*cm)+(o.u?' '+esc(o.u):'')+')':'')).join(' \u00b7 ');
+  const meta=[];if(ct!=='list')meta.push(TLBL[ct]);if(cm!==1)meta.push((ct==='recipe'?'Servings':'Multiplier')+' '+fmtN(cm)+'\u00d7');
+  let ch='<li class="card p"><div class="vt"><div class="t"><b>'+esc(p.name)+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div>';
+  if(meta.length)ch+='<div class="src">'+meta.map(esc).join(' \u00b7 ')+'</div>';
+  if(p.desc)ch+='<div class="src" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(p.desc).replace(/\n/g,'<br>')+'</div>';
+  ch+='<div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div>';
+  if(ct!=='list'&&p.instr)ch+='<div class="src">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(p.instr).replace(/\n/g,'<br>')+'</div>';
+  ch+='<button class="chip sm" data-pa="'+p.id+'">Add all to Sum'+(cm!==1?' at '+fmtN(cm)+'\u00d7':'')+'</button></li>';return ch}).join('')+'</ul>';
  else if(!edP)h+='<div class="empty">No presets yet.<br>Make a go-to list once, then add the whole list to Sum anytime.</div>';
- if(edP){h+='<div class="card p"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'"><label class="f">Items</label>'+(edP.items.length?edP.items.map((n,i)=>'<div class="vt"><div class="t" style="flex:1;min-width:24%;overflow-wrap:anywhere;line-height:1.5">'+esc(n)+'</div><div class="vt-r"><button class="ic" data-pr="'+i+'" aria-label="Remove">'+IC.x+'</button></div></div>').join(''):'<div class="mu">Nothing in this preset yet.</div>')+'<div class="add"><input id="pi" autocapitalize="sentences" spellcheck="false" value="'+esc(piVal)+'"><button class="ic" id="pib" aria-label="Add item">'+IC.plus+'</button></div>'+(pcAsk?'<div style="margin-top:12px">Discard your unsaved changes?</div><div class="row" style="margin-top:10px"><button class="btn sec" id="pck" style="flex:1;margin-top:0">Keep editing</button><button class="btn sec" id="pcd" style="flex:1;margin-top:0">Discard changes</button></div>':'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div>')+'</div>'}
+ if(edP){const em=edP.mult||1,et=edP.type||'list';
+  h+='<div class="card p"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'">'
+  +'<label class="f">List type</label><div class="row add-kind">'+['list','instructions','recipe'].map(k=>'<button class="chip'+(et===k?' on':'')+'" data-pt="'+k+'">'+TLBL[k]+'</button>').join('')+'</div>'
+  +'<label class="f">Description</label><textarea id="pd" rows="2" autocapitalize="sentences">'+esc(edP.desc||'')+'</textarea>'
+  +(et!=='list'?'<label class="f">Instructions</label><textarea id="pin" rows="4" autocapitalize="sentences">'+esc(edP.instr||'')+'</textarea>':'')
+  +'<label class="f">'+(et==='recipe'?'Servings':'Multiplier')+'</label><div class="row" style="align-items:center"><button class="chip" id="mdn" style="flex:0 0 72px">&minus;</button><div style="flex:1;text-align:center;font-weight:600">'+fmtN(em)+'\u00d7</div><button class="chip" id="mup" style="flex:0 0 72px">+</button></div><div class="mu" style="margin-top:6px">Scales every quantity. Items are saved at 1\u00d7.</div>'
+  +'<label class="f">Items</label>'
+  +(edP.items.length?edP.items.map((it,i)=>{const o=itObj(it),qd=o.q===null?'':(em!==1?fmtN(o.q)+' \u00d7 '+fmtN(em)+' = '+fmtN(o.q*em):fmtN(o.q))+(o.u?' '+o.u:'');return '<div class="vt"><div class="t" style="flex:1;min-width:24%;overflow-wrap:anywhere;line-height:1.5">'+esc(o.n)+(qd?'<div class="src">'+esc(qd)+'</div>':'')+'</div><div class="vt-r"><button class="ic" data-pr="'+i+'" aria-label="Remove">'+IC.x+'</button></div></div>'}).join(''):'<div class="mu">Nothing in this preset yet.</div>')
+  +'<div class="add"><input id="pi" autocapitalize="sentences" spellcheck="false" value="'+esc(piVal)+'"></div>'
+  +'<div class="row" style="margin-top:8px;align-items:flex-end"><div style="flex:1;min-width:0"><label class="f" style="margin-top:0">Qty at 1\u00d7</label><input id="pq" inputmode="decimal" autocomplete="off" style="height:44px;min-height:44px" value="'+esc(piQ)+'"></div><div style="flex:1.4;min-width:0"><label class="f" style="margin-top:0">Unit</label><input id="pu" autocapitalize="off" spellcheck="false" style="height:44px;min-height:44px" value="'+esc(piU)+'"></div><button class="ic" id="pib" aria-label="Add item">'+IC.plus+'</button></div>'
+  +(pcAsk?'<div style="margin-top:12px">Discard your unsaved changes?</div><div class="row" style="margin-top:10px"><button class="btn sec" id="pck" style="flex:1;margin-top:0">Keep editing</button><button class="btn sec" id="pcd" style="flex:1;margin-top:0">Discard changes</button></div>':'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div>')+'</div>'}
  else h+='<button class="btn sec" id="np">New preset</button>';
  v.innerHTML=h;
- const np=$('#np');if(np)np.onclick=()=>{edP={id:'',name:'',items:[]};piVal='';note='';pcAsk=false;draw()};
- v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);edP={id:p.id,name:p.name,items:presetItems(p).slice()};piVal='';note='';pcAsk=false;draw()});
+ const np=$('#np');if(np)np.onclick=()=>{edP={id:'',name:'',items:[],type:'list',desc:'',instr:'',mult:1};piVal='';piQ='';piU='';note='';pcAsk=false;draw()};
+ v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);edP={id:p.id,name:p.name,items:presetItems(p).slice(),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p)};piVal='';piQ='';piU='';note='';pcAsk=false;draw()});
  v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{presets=presets.filter(y=>y.id!==b.dataset.px);persist();draw()});
- v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){presetItems(p).forEach(n=>addToSum(n,p.name));note='Added to Sum.'}draw()});
+ v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){const m=pMult(p);pObjs(p).forEach(o=>addToSum(o.n,p.name,qtyAt(o,m)));note=m!==1?'Added to Sum at '+fmtN(m)+'\u00d7.':'Added to Sum.'}draw()});
+ v.querySelectorAll('[data-pt]').forEach(b=>b.onclick=()=>{edP.type=b.dataset.pt;draw()});
  const pn=$('#pn');if(pn)pn.oninput=()=>{edP.name=pn.value};
- const pi=$('#pi');if(pi){pi.oninput=()=>{piVal=pi.value};const addIt=()=>{const nm=normName(pi.value);if(!nm)return;if(edP.items.some(n=>n.toLowerCase()===nm.toLowerCase()))note='Already in this preset.';else{edP.items.push(nm);note=''}piVal='';pcAsk=false;draw()};$('#pib').onclick=addIt;pi.onkeydown=e=>{if(e.key==='Enter')addIt()}};
+ const pdx=$('#pd');if(pdx)pdx.oninput=()=>{edP.desc=pdx.value};
+ const pix=$('#pin');if(pix)pix.oninput=()=>{edP.instr=pix.value};
+ const mdn=$('#mdn');if(mdn)mdn.onclick=()=>{edP.mult=Math.max(.5,Math.round(((edP.mult||1)-.5)*10)/10);draw()};
+ const mup=$('#mup');if(mup)mup.onclick=()=>{edP.mult=Math.min(10,Math.round(((edP.mult||1)+.5)*10)/10);draw()};
+ const pqx=$('#pq');if(pqx){pqx.oninput=()=>{piQ=pqx.value}};
+ const pux=$('#pu');if(pux){pux.oninput=()=>{piU=pux.value}};
+ const pi=$('#pi');if(pi){pi.oninput=()=>{piVal=pi.value};const addIt=()=>{const nm=normName(pi.value);if(!nm)return;
+  const qv=piQ.trim().replace(',','.'),un=normName(piU);let qn=null;
+  if(qv!==''){qn=Number(qv);if(!isFinite(qn)||qn<=0){note='Quantity needs to be a number.';draw();return}}
+  if(un&&qn===null){note='Add a quantity to use a unit.';draw();return}
+  if(edP.items.some(it=>itObj(it).n.toLowerCase()===nm.toLowerCase()))note='Already in this preset.';
+  else{edP.items.push(qn===null?nm:{n:nm,q:qn,u:un});note=''}
+  piVal='';piQ='';piU='';pcAsk=false;draw()};
+  $('#pib').onclick=addIt;pi.onkeydown=e=>{if(e.key==='Enter')addIt()};
+  if(pqx)pqx.onkeydown=e=>{if(e.key==='Enter')addIt()};if(pux)pux.onkeydown=e=>{if(e.key==='Enter')addIt()}};
  v.querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{edP.items.splice(+b.dataset.pr,1);pcAsk=false;draw()});
- const ps=$('#ps');if(ps)ps.onclick=()=>{const nm=normName(edP.name);if(!nm){note='Name the preset first.';draw();return}if(edP.id){const p=presets.find(y=>y.id===edP.id);if(p){p.name=nm;p.items=edP.items.slice()}}else presets.push({id:uid(),name:nm,items:edP.items.slice(),at:Date.now()});edP=null;piVal='';note='';pcAsk=false;persist();draw()};
- const pc=$('#pc');if(pc)pc.onclick=()=>{const o=edP.id?presets.find(y=>y.id===edP.id):null,on=o?o.name:'',oi=o?presetItems(o):[];
-  const dirty=normName(edP.name)!==on||edP.items.length!==oi.length||edP.items.some((n,i)=>n!==oi[i]);
-  if(dirty){pcAsk=true;draw()}else{edP=null;piVal='';note='';pcAsk=false;draw()}};
+ const ps=$('#ps');if(ps)ps.onclick=()=>{const nm=normName(edP.name);if(!nm){note='Name the preset first.';draw();return}
+  const rec={name:nm,type:edP.type||'list',desc:(edP.desc||'').trim(),instr:(edP.instr||'').trim(),mult:edP.mult||1,items:edP.items.slice()};
+  if(edP.id){const p=presets.find(y=>y.id===edP.id);if(p){p.name=rec.name;p.type=rec.type;p.desc=rec.desc;p.instr=rec.instr;p.mult=rec.mult;p.items=rec.items}}
+  else presets.push(Object.assign({id:uid(),at:Date.now()},rec));
+  edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;persist();draw()};
+ const pc=$('#pc');if(pc)pc.onclick=()=>{const o=edP.id?presets.find(y=>y.id===edP.id):null,oi=o?pObjs(o):[],ni=edP.items.map(itObj);
+  const dirty=normName(edP.name)!==(o?o.name:'')||(edP.type||'list')!==(o?pType(o):'list')||(edP.desc||'').trim()!==(o?(o.desc||'').trim():'')||(edP.instr||'').trim()!==(o?(o.instr||'').trim():'')||(edP.mult||1)!==(o?pMult(o):1)||ni.length!==oi.length||ni.some((it,i)=>it.n!==oi[i].n||it.q!==oi[i].q||it.u!==oi[i].u);
+  if(dirty){pcAsk=true;draw()}else{edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;draw()}};
  const pk=$('#pck');if(pk)pk.onclick=()=>{pcAsk=false;draw()};
- const pd=$('#pcd');if(pd)pd.onclick=()=>{edP=null;piVal='';note='';pcAsk=false;draw()}}
+ const pd=$('#pcd');if(pd)pd.onclick=()=>{edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;draw()}}
 const dlFile=(name,text,type)=>{const b=new Blob([text],{type:type||'text/plain'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},500)};
 const backupFile=()=>JSON.stringify({app:'listo',format:'listo-backup',version:1,exported:new Date().toISOString(),components:comps,presets:presets,sum,settings:{theme:theme()}},null,2);
 function resetHtml(){const ok=rchk&&rtxt.trim().toUpperCase()==='RESET';
