@@ -176,7 +176,7 @@ const pFactor=p=>{if(pType(p)!=='recipe')return pMult(p);const sv=pServ(p),dv=pD
 const TLBL={list:'List',instructions:'Instructed list',grocery:'Grocery','grocery-instructions':'Instructed grocery',recipe:'Recipe'};
 const pQty=(p,name)=>{const e=(p.qty||{})[String(name).toLowerCase()];return (e&&typeof e.q==='number'&&isFinite(e.q)&&e.q>0)?{q:e.q,u:String(e.u||'')}:null};
 const pQtyAny=(p,it)=>{const e=pQty(p,itName(it));if(e)return e;const o=(typeof it==='object'&&it)?it:null;return (o&&typeof o.q==='number'&&isFinite(o.q)&&o.q>0)?{q:o.q,u:String(o.u||'')}:null};
-const srcLbl=s=>{const p=presets.find(y=>normName(y.name).toLowerCase()===String(s).toLowerCase());return p?TLBL[pType(p)]+' \u00b7 '+p.name:String(s)};
+const srcLbl=s=>{const p=presets.find(y=>normName(y.name).toLowerCase()===String(s).toLowerCase());return p?TLBL[pType(p)]+' \u2022 '+p.name:String(s)};
 const addLbl=p=>{const ct=pType(p),f=pFactor(p);if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);if(sv&&dv&&sv!==dv)return 'Add all to Sum \u00b7 serves '+fmtN(dv)}return f!==1?'Add all to Sum at '+fmtN(f)+'\u00d7':'Add all to Sum'};
 function qtyLine(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
  const srcs=(x.src||[]).map(String),legacy=x.qty?String(x.qty):'';
