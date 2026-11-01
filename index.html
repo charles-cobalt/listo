@@ -185,7 +185,13 @@ function qtyLine(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&is
  if(legacy)h=h?h+' \u00b7 '+esc(legacy):esc(legacy);
  if(srcs.length)h=h?h+' \u00b7 from '+srcs.map(esc).join(' \u00b7 '):'from '+srcs.map(esc).join(' \u00b7 ');
  return h}
-function migrate(){let ch=false;presets.forEach(p=>{if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}});if(comps.length){comps.forEach(c=>{const ex=presets.find(p=>p.id==='mig-'+c.id);if(ex){if(!ex.items.some(n=>n.toLowerCase()===c.name.toLowerCase()))ex.items.push(c.name)}else presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
+function migrate(){let ch=false;presets.forEach(p=>{
+ if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}
+ if(p.items.some(it=>typeof it==='object'&&it)){const q=Object.assign({},p.qty);
+  p.items=p.items.map(it=>{if(typeof it!=='object'||!it)return it;const nm=itName(it);
+   if(nm&&typeof it.q==='number'&&isFinite(it.q)&&it.q>0&&!q[nm.toLowerCase()])q[nm.toLowerCase()]={q:it.q,u:String(it.u||'')};
+   return nm}).filter(n2=>n2);
+  if(Object.keys(q).length)p.qty=q;ch=true}});if(comps.length){comps.forEach(c=>{const ex=presets.find(p=>p.id==='mig-'+c.id);if(ex){if(!ex.items.some(n=>n.toLowerCase()===c.name.toLowerCase()))ex.items.push(c.name)}else presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
 function addToSum(name,src,qc){name=normName(name);if(!name)return;src=normName(src);const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());
  if(ex){if(src&&!(ex.src||[]).length&&!(ex.qtys||[]).length)ex.keepManual=true;
   const was=ex.done;if(was)ex.done=false;let added=false;
