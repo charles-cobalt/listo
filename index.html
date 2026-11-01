@@ -270,15 +270,23 @@ function openImportDraft(d){const seen=new Set(),items=[],qty={};
  page='components';draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()}
 /*SORT + DRAG*/
 const SORTS=[['custom','Custom'],['custom','Custom',1],['name','Name'],['name','Name',1],['added','Date added'],['added','Date added',1]];
-let sortC=+localStorage.getItem('listo.sort.c')||0,sortS=+localStorage.getItem('listo.sort.s')||0;if(!(sortC>=0&&sortC<SORTS.length))sortC=0;if(!(sortS>=0&&sortS<SORTS.length))sortS=0;
-const sortView=(arr,si,nm)=>{const s=SORTS[si]||SORTS[0],k=s[0],rev=s[2]===1,a=arr.slice();
- if(k==='name')a.sort((x,y)=>String(nm(x)).toLowerCase().localeCompare(String(nm(y)).toLowerCase()));
- else if(k==='added')a.sort((x,y)=>(y.at||0)-(x.at||0));
+const SORTS_C=[['custom','Custom'],['custom','Custom',1],['name','Name'],['name','Name',1],['added','Date Added'],['added','Date Added',1],['modified','Date Modified'],['modified','Date Modified',1],['gcustom','List Type'],['gcustom','List Type',1],['gxcustom','List Type + Custom'],['gxcustom','List Type + Custom',1],['gname','List Type + Name'],['gname','List Type + Name',1],['gadded','List Type + Date Added'],['gadded','List Type + Date Added',1],['gmodified','List Type + Date Modified'],['gmodified','List Type + Date Modified',1]];
+const TORD=['list','instructions','grocery','grocery-instructions','recipe'];
+let sortC=+localStorage.getItem('listo.sort.c')||0,sortS=+localStorage.getItem('listo.sort.s')||0;if(!(sortC>=0&&sortC<SORTS_C.length))sortC=0;if(!(sortS>=0&&sortS<SORTS.length))sortS=0;
+const sortView=(arr,si,nm,tp)=>{const S=tp?SORTS_C:SORTS,s=S[si]||S[0],k=s[0],rev=s[2]===1,a=arr.slice();
+ const byName=(x,y)=>String(nm(x)).toLowerCase().localeCompare(String(nm(y)).toLowerCase());
+ const byAdded=(x,y)=>(y.at||0)-(x.at||0);
+ const byMod=(x,y)=>((y.edited||y.at||0)-(x.edited||x.at||0));
+ if(k==='name')a.sort(byName);
+ else if(k==='added')a.sort(byAdded);
+ else if(k==='modified'&&tp)a.sort(byMod);
+ else if(tp&&k[0]==='g'){const crit=k==='gname'?byName:(k==='gadded'?byAdded:(k==='gmodified'?byMod:(x,y)=>0));
+  a.sort((x,y)=>{const d=TORD.indexOf(tp(x))-TORD.indexOf(tp(y));return d||crit(x,y)})}
  if(rev)a.reverse();return a};
 function sortUI(){const b=$('#sortb'),l=$('#sortl');if(!b)return;
  const on=page==='sum'?sum.length>1:(page==='components'&&presets.filter(p=>!p.arch).length>1);
  b.style.display=on?'flex':'none';l.style.display=on?'flex':'none';if(!on)return;
- const s=SORTS[page==='sum'?sortS:sortC]||SORTS[0];l.textContent=s[1]+(s[2]===1?' \u2191':' \u2193')}
+ const s=(page==='sum'?SORTS:SORTS_C)[page==='sum'?sortS:sortC]||SORTS[0];l.textContent=s[1]+(s[2]===1?' \u2191':' \u2193')}
 function dragReorder(e,li,ul,done){if(!li||!ul)return;e.preventDefault();const pid=e.pointerId,y0=e.clientY,off0=li.offsetTop;let moved=false;li.classList.add('drag');
  const move=ev=>{if(ev.pointerId!==pid)return;moved=true;li.style.transform='translateY('+((ev.clientY-y0)+(off0-li.offsetTop))+'px)';const cy=ev.clientY;let pv=li.previousElementSibling;while(pv){const r=pv.getBoundingClientRect();if(cy<r.top+r.height/2){ul.insertBefore(li,pv);pv=li.previousElementSibling}else pv=null}let nx=li.nextElementSibling;while(nx){const r=nx.getBoundingClientRect();if(cy>r.top+r.height/2){ul.insertBefore(nx,li);nx=li.nextElementSibling}else nx=null}};
  const up=ev=>{if(ev.pointerId!==undefined&&ev.pointerId!==pid)return;document.removeEventListener('pointermove',move,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);li.classList.remove('drag');li.style.transform='';if(!moved)return;done([...ul.children].map(c=>c.dataset.iid).filter(Boolean))};
@@ -319,20 +327,20 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  h+='<input type="file" id="impf" accept="image/*,.heic,.heif,application/pdf,.pdf,text/plain,text/markdown,text/csv,.txt,.md,.csv" style="display:none">';
  const act=presets.filter(p=>!p.arch),arc=presets.filter(p=>p.arch);
  const pCard=p=>{const ct=pType(p),f=pFactor(p);
-  const names=presetItems(p).map(it=>{const e=pQtyAny(p,it);return esc(itName(it))+(e?' ('+fmtN(e.q*f)+(e.u?' '+esc(e.u):'')+')':'')}).join(' \u00b7 ');
+  const names=presetItems(p).map(it=>{const e=pQtyAny(p,it);return (e?'('+fmtN(e.q*f)+(e.u?' '+esc(e.u):'')+') ':'')+esc(itName(it))}).join(' \u00b7 ');
   const meta=[];if(ct==='instructions'||ct==='grocery-instructions')meta.push(TLBL[ct]);
   if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);
    if(sv&&dv){if(sv!==dv)meta.push('Servings '+fmtN(sv)+' \u2192 '+fmtN(dv));else if(sv!==1)meta.push('Servings '+fmtN(sv))}
    else if(f!==1)meta.push('Scaling \u00d7'+fmtN(f))}
   else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
-  let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+(sortC===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
+  let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+(sortC===0||sortC===10?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
   if(meta.length)ch+='<div class="src">'+meta.map(esc).join(' \u00b7 ')+'</div>';
   if(p.desc)ch+='<div class="src" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(p.desc).replace(/\n/g,'<br>')+'</div>';
   ch+='<div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div>';
   if(ct!=='list'&&ct!=='grocery'&&p.instr)ch+='<div class="src">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(p.instr).replace(/\n/g,'<br>')+'</div>';
   ch+='<button class="chip sm" data-pa="'+p.id+'">'+addLbl(p)+'</button><button class="lnk" data-par="'+p.id+'" style="padding:8px 4px 0">Archive</button></li>';return ch};
  [['lists','Lists','list','New list'],['groceries','Groceries','grocery','New grocery'],['recipes','Recipes','recipe','New recipe']].forEach(sc=>{
-  const lst=sortView(act.filter(p=>pSection(p)===sc[0]),sortC,p=>pTitle(p.name));
+  const lst=sortView(act.filter(p=>pSection(p)===sc[0]),sortC,p=>pTitle(p.name),pType);
   h+='<h2>'+sc[1]+'</h2>';
   if(lst.length)h+='<ul data-sec="'+sc[0]+'">'+lst.map(pCard).join('')+'</ul>';
   else h+='<div class="mu" style="margin:-4px 2px 14px">None yet.</div>';
@@ -369,7 +377,10 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   const sva=pServ(p),dva=pDserv(p);
   note=f===1?'Added to Sum.':(ct==='recipe'&&sva&&dva?'Added to Sum \u00b7 serves '+fmtN(dva)+'.':'Added to Sum at '+fmtN(f)+'\u00d7.')}draw()});
  v.querySelectorAll('[data-psh]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.psh);if(p)sharePreset(p)});
- v.querySelectorAll('ul[data-sec]').forEach(ul=>{const sec=ul.dataset.sec;wireGrips(ul,seq=>{const byId={};presets.forEach(p=>byId[p.id]=p);let p2=0;presets=presets.map(p=>pSection(p)===sec&&!p.arch?(byId[seq[p2++]]||p):p);persist();draw()})});
+ v.querySelectorAll('ul[data-sec]').forEach(ul=>{const sec=ul.dataset.sec;wireGrips(ul,seq=>{const byId={};presets.forEach(p=>byId[p.id]=p);
+  if(sortC===10){const vIds=sortView(presets.filter(p=>pSection(p)===sec&&!p.arch),sortC,p=>pTitle(p.name),pType).map(p=>p.id);
+   if(seq.length!==vIds.length||seq.some((id,i)=>!byId[id]||!byId[vIds[i]]||pType(byId[id])!==pType(byId[vIds[i]]))){draw();return}}
+  let p2=0;presets=presets.map(p=>pSection(p)===sec&&!p.arch?(byId[seq[p2++]]||p):p);persist();draw()})});
  v.querySelectorAll('[data-pt]').forEach(b=>b.onclick=()=>{edP.type=b.dataset.pt;draw()});
  const pn=$('#pn');if(pn)pn.oninput=()=>{edP.name=pn.value};
  const pdx=$('#pd');if(pdx)pdx.oninput=()=>{edP.desc=pdx.value};
@@ -410,8 +421,8 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   const rec={name:nm,type:edP.type||'list',desc:(edP.desc||'').trim(),instr:(edP.instr||'').trim(),mult:edP.mult||1,items:edP.items.slice(),qty:{}};
   if(rec.type==='recipe'&&edP.servSet){rec.serv=edP.serv||1;rec.dserv=edP.dserv||1}
   Object.keys(edP.qty||{}).forEach(k=>{if(rec.items.some(n2=>n2.toLowerCase()===k))rec.qty[k]=edP.qty[k]});
-  if(edP.id){const p=presets.find(y=>y.id===edP.id);if(p){p.name=rec.name;p.type=rec.type;p.desc=rec.desc;p.instr=rec.instr;p.mult=rec.mult;if('serv' in rec){p.serv=rec.serv;p.dserv=rec.dserv}p.items=rec.items;if(Object.keys(rec.qty).length)p.qty=rec.qty;else delete p.qty}}
-  else{if(!Object.keys(rec.qty).length)delete rec.qty;presets.push(Object.assign({id:uid(),at:Date.now()},rec))}
+  if(edP.id){const p=presets.find(y=>y.id===edP.id);if(p){p.name=rec.name;p.type=rec.type;p.desc=rec.desc;p.instr=rec.instr;p.mult=rec.mult;if('serv' in rec){p.serv=rec.serv;p.dserv=rec.dserv}p.items=rec.items;if(Object.keys(rec.qty).length)p.qty=rec.qty;else delete p.qty;p.edited=Date.now()}}
+  else{if(!Object.keys(rec.qty).length)delete rec.qty;presets.push(Object.assign({id:uid(),at:Date.now(),edited:Date.now()},rec))}
   edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;persist();draw()};
  const pc=$('#pc');if(pc)pc.onclick=()=>{const o=edP.id?presets.find(y=>y.id===edP.id):null,onames=o?presetItems(o).map(itName):[],oq={};
   if(o)presetItems(o).forEach(it=>{const e=pQtyAny(o,it);if(e)oq[itName(it).toLowerCase()]={q:e.q,u:e.u}});
@@ -429,21 +440,20 @@ async function sharePreset(p){try{const ct=pType(p),f=pFactor(p);
  const W=1080,PAD=64,CW=W-PAD*2,cv=document.createElement('canvas'),cx=cv.getContext('2d');
  try{await document.fonts.ready}catch(e2){}
  const FF='DINish,-apple-system,system-ui,sans-serif';
- const wrap=(text,font)=>{cx.font=font;const out=[];String(text).split('\n').forEach(par=>{const ws=par.split(/\s+/).filter(Boolean);if(!ws.length){out.push('');return}let line='';ws.forEach(wd=>{const t=line?line+' '+wd:wd;if(cx.measureText(t).width<=CW)line=t;else{if(line)out.push(line);line=wd}});if(line)out.push(line)});return out};
+ const wrap=(text,font,firstPad)=>{cx.font=font;const out=[];let fp=firstPad||0;String(text).split('\n').forEach(par=>{const ws=par.split(/\s+/).filter(Boolean);if(!ws.length){out.push('');fp=0;return}let line='';ws.forEach(wd=>{const t=line?line+' '+wd:wd;if(cx.measureText(t).width<=CW-fp)line=t;else{if(line){out.push(line);fp=0}line=wd}});if(line){out.push(line);fp=0}});return out};
  const ops=[];let y=PAD+42;
  const push=(text,font,color,lh,gap)=>{wrap(text,font).forEach(ln=>{ops.push({ln,font,color,y});y+=lh});y+=gap};
  push(pTitle(p.name),'700 46px '+FF,'#ececec',56,12);
  if(meta.length)push(meta.join(' \u00b7 ').toUpperCase(),'600 20px '+FF,'#8c8c8c',28,18);
  if(p.desc)push(p.desc,'400 26px '+FF,'#8c8c8c',36,18);
- items.forEach(it=>{const lines=wrap(it.n,'400 30px '+FF);lines.forEach((ln,i)=>{ops.push({ln,font:'400 30px '+FF,color:'#ececec',y,qty:i===lines.length-1?it.t:''});y+=44})});
+ items.forEach(it=>{const qf='400 30px '+FF;let qw=0;if(it.t){cx.font=qf;qw=cx.measureText(it.t+' ').width}const lines=wrap(it.n,qf,qw);lines.forEach((ln,i)=>{ops.push({ln,font:qf,color:'#ececec',y,qty:i===0?it.t:'',qw:i===0?qw:0});y+=44})});
  if(items.length)y+=6;
  if(ct!=='list'&&ct!=='grocery'&&p.instr){push('Instructions','600 20px '+FF,'#8c8c8c',28,6);push(p.instr,'400 26px '+FF,'#8c8c8c',38,10)}
  y+=70;
  cv.width=W;cv.height=y;
  const g=cx.createLinearGradient(0,0,0,cv.height);g.addColorStop(0,'#1c1c1c');g.addColorStop(1,'#121212');cx.fillStyle=g;cx.fillRect(0,0,W,cv.height);
  cx.strokeStyle='#353535';cx.lineWidth=2;cx.strokeRect(1,1,W-2,cv.height-2);
- ops.forEach(o=>{cx.font=o.font;cx.fillStyle=o.color;cx.fillText(o.ln,PAD,o.y);
-  if(o.qty){cx.fillStyle='#8c8c8c';cx.fillText('  '+o.qty,PAD+cx.measureText(o.ln).width+10,o.y)}});
+ ops.forEach(o=>{cx.font=o.font;if(o.qty){cx.fillStyle='#8c8c8c';cx.fillText(o.qty,PAD,o.y)}cx.fillStyle=o.color;cx.fillText(o.ln,PAD+(o.qw||0),o.y)});
  cx.font='600 22px '+FF;cx.fillStyle='#8c8c8c';cx.textAlign='center';try{cx.letterSpacing='6px'}catch(e4){}
  cx.fillText('L I S T O',W/2,y-26);
  const b=await new Promise(res=>cv.toBlob(res,'image/png'));if(!b)throw new Error('blob');
@@ -482,7 +492,7 @@ function draw(top){document.querySelectorAll('nav button').forEach(b=>b.classLis
  if(page==='sum')drawSum(v);else if(page==='components')drawComponents(v);else drawSettings(v);
  sortUI();scrollTo(0,y)}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';draw(true)});
-$('#sortb').onclick=()=>{if(page==='sum'){sortS=(sortS+1)%SORTS.length;try{localStorage.setItem('listo.sort.s',String(sortS))}catch(e){}}else if(page==='components'){sortC=(sortC+1)%SORTS.length;try{localStorage.setItem('listo.sort.c',String(sortC))}catch(e){}}else return;draw()};
+$('#sortb').onclick=()=>{if(page==='sum'){sortS=(sortS+1)%SORTS.length;try{localStorage.setItem('listo.sort.s',String(sortS))}catch(e){}}else if(page==='components'){sortC=(sortC+1)%SORTS_C.length;try{localStorage.setItem('listo.sort.c',String(sortC))}catch(e){}}else return;draw()};
 $('#home').onclick=()=>{page='sum';note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';draw(true)};
 (function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}migrate()})();
 onAuthStateChanged(auth,u=>{user=u;if(unsub){unsub();unsub=null}
