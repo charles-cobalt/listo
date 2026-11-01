@@ -187,7 +187,11 @@ function sumAmt(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isF
  if(cs.length){const tot=cs.reduce((a,c)=>a+c.q,0),uu=cs.map(c=>String(c.u||'')).sort((a,b)=>b.length-a.length)[0];return fmtN(tot)+(uu?' '+uu:'')}
  return x.qty?String(x.qty):''}
 function sumSub(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
- const srcs=(x.src||[]).map(String),legacy=x.qty?String(x.qty):'';let h='';
+ const srcs=(x.src||[]).map(String),legacy=x.qty?String(x.qty):'';
+ if(cs.length>1&&!cs.every(c=>compatU(c.u,cs[0].u))){
+  const cov=new Set(cs.map(c=>String(c.s).toLowerCase())),others=srcs.filter(s=>!cov.has(s.toLowerCase()));
+  return cs.map(c=>esc(fmtN(c.q)+(c.u?' '+c.u:''))+' from '+esc(srcLbl(c.s))).join(' + ')+(others.length?' \u00b7 from '+others.map(s2=>esc(srcLbl(s2))).join(' \u00b7 '):'')+(legacy?' \u00b7 earlier: '+esc(legacy):'')}
+ let h='';
  if(cs.length&&legacy)h='earlier: '+esc(legacy);
  if(srcs.length)h=h?h+' \u00b7 from '+srcs.map(s2=>esc(srcLbl(s2))).join(' \u00b7 '):'from '+srcs.map(s2=>esc(srcLbl(s2))).join(' \u00b7 ');
  return h}
