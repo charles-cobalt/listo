@@ -82,9 +82,10 @@ svg.wm{width:190px;top:-40px;left:-16px;opacity:.06}
 <div class="hd"><button class="logo" id="home" aria-label="Home"><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="hlogo keep"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg></button></div><div id="app"><div class="hdsp"></div><div id="view"></div></div>
 <nav id="nav"><button data-go="sum" aria-label="Sum"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="320"/></svg></button><button data-go="components" aria-label="Components"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="500" cy="500" r="215"/></svg></button><button data-go="settings" aria-label="Settings"><svg viewBox="150 150 700 700" fill="none" stroke="currentColor" stroke-width="30" style="width:28px;height:28px"><circle cx="701.5" cy="701.5" r="115"/></svg></button></nav>
 <script type="module">
-import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,sendEmailVerification,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import {getFirestore,doc,onSnapshot,runTransaction} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {initializeApp} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+import {getAI,getGenerativeModel,GoogleAIBackend} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js";
+import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,sendEmailVerification,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+import {getFirestore,doc,onSnapshot,runTransaction} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 const fapp=initializeApp({"apiKey":"AIzaSyCsLY_G-ax8D4dPQQOP7gTl7wjCJ4Pl-zg","authDomain":"listo-a3da9.firebaseapp.com","projectId":"listo-a3da9","storageBucket":"listo-a3da9.firebasestorage.app","messagingSenderId":"813323268597","appId":"1:813323268597:web:92211572fce381649370bc"}),auth=getAuth(fapp),db=getFirestore(fapp);
 const $=s=>document.querySelector(s),TK='listo.theme',DK='listo.data.v1';
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -95,7 +96,7 @@ const IC={
  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M6 6l12 12M18 6L6 18"/></svg>',
  pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 20l4-1L19.5 7.5a2.1 2.1 0 0 0-3-3L5 16l-1 4z"/></svg>',
  chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
-let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edP=null,nsVal='',piVal='',piQ='',piU='',rstOpen=false,rchk=false,rtxt='',rnote='',clraOpen=false,clraTxt='',pcAsk=false,rpOpen=false,rpSel='';
+let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edP=null,imp=null,nsVal='',piVal='',piQ='',piU='',rstOpen=false,rchk=false,rtxt='',rnote='',clraOpen=false,clraTxt='',pcAsk=false,rpOpen=false,rpSel='';
 const theme=()=>localStorage.getItem(TK)||'auto';
 function applyTheme(){const t=theme(),d=t==='day'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.toggle('day',d);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#ededed':'#121212'}
 matchMedia('(prefers-color-scheme: light)').addEventListener&&matchMedia('(prefers-color-scheme: light)').addEventListener('change',applyTheme);
@@ -214,6 +215,44 @@ function dropSrc(k){let t=0;sum=sum.filter(x=>{const hasS=(x.src||[]).some(s2=>S
 function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px"><div>Remove a preset from Sum</div><div class="mu">Lines only that preset added are removed. Lines it shares with other presets stay, without its label. The saved preset stays in Components.</div>'+cn.map(c=>'<div class="row" style="margin-top:10px"><button class="btn sec" data-rp="'+esc(c.key)+'" style="flex:1;margin-top:0;text-align:left">'+esc(c.name)+' \u00b7 '+c.total+(c.total===1?' line':' lines')+'</button></div>').join('')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>';
  const c=cn.find(x=>x.key===rpSel);if(!c){rpSel='';return ''}
  return '<div class="card p" style="margin-top:14px"><div>Remove '+esc(c.name)+' from Sum?</div><div class="mu">'+(c.only?'This removes the '+c.only+(c.only===1?' line':' lines')+' that only '+esc(c.name)+' added. ':'')+(c.shared?c.shared+' shared '+(c.shared===1?'line stays':'lines stay')+' for your other presets, without the '+esc(c.name)+' label. ':'')+'The saved preset stays in Components.</div><div class="row" style="margin-top:10px"><button class="btn" id="rpgo" style="flex:1;margin-top:0">Remove '+esc(c.name)+'</button><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>'}
+/*IMPORT*/
+const AIM='gemini-2.5-flash';let _aiM=null;
+const aiModel=()=>{if(!_aiM)_aiM=getGenerativeModel(getAI(fapp,{backend:new GoogleAIBackend()}),{model:AIM,generationConfig:{responseMimeType:'application/json'}});return _aiM};
+const b64File=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('read'));r.readAsDataURL(f)});
+const imgPart=async f=>{const bmp=await createImageBitmap(f);const s=Math.min(1,1568/Math.max(bmp.width,bmp.height));
+ const cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(bmp.width*s));cv.height=Math.max(1,Math.round(bmp.height*s));
+ cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
+ return {inlineData:{mimeType:'image/jpeg',data:cv.toDataURL('image/jpeg',0.85).split(',')[1]}}};
+const IMP_PROMPT='You are reading a photo, scan, PDF or text note that contains a shopping list, packing list, to-do list, or recipe. Return ONLY JSON of this exact shape:\n{"kind":"grocery"|"list"|"recipe","name":string,"description":string,"servings":number|null,"hasInstructions":boolean,"items":[{"name":string,"quantity":number|null,"unit":string|null}],"instructions":[string]}\nRules: kind is "recipe" for cooking or baking with ingredients and steps, "grocery" for items you buy at a store, otherwise "list". name is a short title; guess a fitting one if the source has none. quantity is a plain number (1/2 becomes 0.5); null when there is no quantity. unit is the measurement word (cup, lb, tsp); null when there is none. Keep instructions in order; use [] when there are none. description is one short sentence, or "". servings is the number of servings for a recipe, otherwise null. If you cannot find any list or recipe items, return {"kind":"list","name":"","description":"","servings":null,"hasInstructions":false,"items":[],"instructions":[]}.';
+async function detect(parts){const r=await aiModel().generateContent([{text:IMP_PROMPT},...parts]);
+ const t=r.response.text();const d=JSON.parse(String(t).replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,''));
+ return d&&typeof d==='object'?d:{}}
+function importErr(e){const m=String(e&&(e.code||e.message||e)||'');
+ if(/quota|429|rate|exhausted/i.test(m))return 'The free detection limit was reached for now. It resets daily - try again later.';
+ if(/unavailable|network|failed to fetch|offline/i.test(m))return 'Could not reach the detection service. Check your connection and try again.';
+ if(/permission|403|app check|appcheck|config not found/i.test(m))return 'Detection is not fully set up yet. Try again in a few minutes.';
+ return 'Detection did not work on that file. Try a clearer photo or another file.'}
+async function importFile(f){if(imp)return;imp={stage:'Reading '+(f.name||'photo')+'\u2026',sub:f.size>3000000?'Large file - this can take a little longer.':''};note='';draw();
+ try{let parts=[];const nm=String(f.name||'').toLowerCase();
+  if(/^image\//.test(f.type)||/\.(png|jpe?g|webp|gif|heic|heif)$/.test(nm))parts=[await imgPart(f)];
+  else if(f.type==='application/pdf'||/\.pdf$/.test(nm))parts=[{inlineData:{mimeType:'application/pdf',data:await b64File(f)}}];
+  else{const t=(await f.text()).slice(0,20000);if(!t.trim())throw new Error('empty');parts=[{text:'FILE CONTENTS:\n'+t}]}
+  imp={stage:'Detecting the list\u2026',sub:'Usually a few seconds.'};draw();
+  openImportDraft(await detect(parts));
+ }catch(e){imp=null;note=importErr(e);draw()}}
+function openImportDraft(d){const seen=new Set(),items=[],qty={};
+ (Array.isArray(d.items)?d.items:[]).forEach(it=>{const n=normName(it&&it.name);if(!n)return;const k=n.toLowerCase();if(seen.has(k))return;seen.add(k);items.push(n);
+  if(typeof it.quantity==='number'&&isFinite(it.quantity)&&it.quantity>0)qty[k]={q:Math.round(it.quantity*1000)/1000,u:normName(it.unit)}});
+ if(!items.length){imp=null;note='Could not find a list in that. Try a clearer photo or another file.';draw();return}
+ const kind=d.kind==='recipe'?'recipe':(d.kind==='grocery'?'grocery':'list');
+ const instr=(Array.isArray(d.instructions)?d.instructions:[]).map(s=>String(s||'').trim()).filter(Boolean).map(s=>s.replace(/^\s*\d+\s*[.)]\s*/,''));
+ const hasI=(d.hasInstructions&&instr.length>0)||(kind==='recipe'&&instr.length>0);
+ const type=kind==='recipe'?'recipe':(hasI?(kind==='grocery'?'grocery-instructions':'instructions'):kind);
+ const sv=(typeof d.servings==='number'&&isFinite(d.servings)&&d.servings>0)?Math.max(1,Math.min(48,Math.round(d.servings))):null;
+ edP={id:'',name:normName(d.name)||'Imported '+TLBL[type].toLowerCase(),items,type,desc:normName(d.description),instr:instr.map((s,i)=>(i+1)+'. '+s).join('\n'),mult:1,serv:sv||1,dserv:sv||1,servSet:type==='recipe'?!!sv:true,qty};
+ imp=null;piVal='';piQ='';piU='';pcAsk=false;
+ note='Found '+items.length+(items.length===1?' item':' items')+'. Check the draft, fix anything, then Save.';
+ page='components';draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()}
 /*DRAW*/
 const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
@@ -242,6 +281,10 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
   dropSrc(k);
   rpOpen=false;rpSel='';note='Removed '+nm+' from Sum.';persist();draw()}}
 function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div><div class="msg">'+esc(note)+'</div>';
+ if(!edP){h+='<h2>Import</h2>';
+  if(imp)h+='<div class="card p" style="margin-bottom:24px"><div>'+esc(imp.stage)+'</div>'+(imp.sub?'<div class="mu" style="margin-top:4px">'+esc(imp.sub)+'</div>':'')+'</div>';
+  else h+='<div style="margin:0 0 24px"><button class="btn sec" id="impb" style="margin-top:0">Import from photo or file</button><div class="mu" style="margin:8px 2px 0">Take a photo or choose a photo, PDF or text file. Listo reads it into a draft you check before saving.</div></div>'}
+ h+='<input type="file" id="impf" accept="image/*,.heic,.heif,application/pdf,.pdf,text/plain,text/markdown,text/csv,.txt,.md,.csv" style="display:none">';
  const act=presets.filter(p=>!p.arch),arc=presets.filter(p=>p.arch);
  const pCard=p=>{const ct=pType(p),f=pFactor(p);
   const names=presetItems(p).map(it=>{const e=pQtyAny(p,it);return esc(itName(it))+(e?' ('+fmtN(e.q*f)+(e.u?' '+esc(e.u):'')+')':'')}).join(' \u00b7 ');
@@ -280,6 +323,8 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   +'<div class="row" style="margin-top:8px;align-items:flex-end"><div style="flex:1;min-width:0"><label class="f" style="margin-top:0">'+(et==='recipe'?'Qty at original servings':'Qty at 1\u00d7')+'</label><input id="pq" inputmode="decimal" autocomplete="off" style="height:44px;min-height:44px" value="'+esc(piQ)+'"></div><div style="flex:1.4;min-width:0"><label class="f" style="margin-top:0">Unit</label><input id="pu" autocapitalize="off" spellcheck="false" style="height:44px;min-height:44px" value="'+esc(piU)+'"></div><button class="ic" id="pib" aria-label="Add item">'+IC.plus+'</button></div>'
   +(pcAsk?'<div style="margin-top:12px">Discard your unsaved changes?</div><div class="row" style="margin-top:10px"><button class="btn sec" id="pck" style="flex:1;margin-top:0">Keep editing</button><button class="btn sec" id="pcd" style="flex:1;margin-top:0">Discard changes</button></div>':'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div>')+'</div>'}
  v.innerHTML=h;
+ const imf=$('#impf');if(imf)imf.onchange=()=>{const f=imf.files&&imf.files[0];imf.value='';if(f)importFile(f)};
+ const imb=$('#impb');if(imb)imb.onclick=()=>{const f2=$('#impf');if(f2)f2.click()};
  v.querySelectorAll('[data-np]').forEach(b=>b.onclick=()=>{edP={id:'',name:'',items:[],type:b.dataset.np,desc:'',instr:'',mult:1,serv:1,dserv:1,servSet:true,qty:{}};piVal='';piQ='';piU='';note='';pcAsk=false;draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()});
  v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);const svr=pServ(p);edP={id:p.id,name:p.name,items:presetItems(p).map(itName),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p),serv:svr||1,dserv:pDserv(p)||Math.max(1,Math.round(pMult(p)*(svr||1))),servSet:!!svr,qty:{}};
   presetItems(p).forEach(it=>{const e=pQtyAny(p,it);if(e)edP.qty[itName(it).toLowerCase()]={q:e.q,u:e.u}});
