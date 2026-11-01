@@ -182,14 +182,13 @@ const pQty=(p,name)=>{const e=(p.qty||{})[String(name).toLowerCase()];return (e&
 const pQtyAny=(p,it)=>{const e=pQty(p,itName(it));if(e)return e;const o=(typeof it==='object'&&it)?it:null;return (o&&typeof o.q==='number'&&isFinite(o.q)&&o.q>0)?{q:o.q,u:String(o.u||'')}:null};
 const srcLbl=s=>{const p=presets.find(y=>normName(y.name).toLowerCase()===String(s).toLowerCase());return p?TLBL[pType(p)]+' \u2022 '+p.name:String(s)};
 const addLbl=p=>{const ct=pType(p),f=pFactor(p);if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);if(sv&&dv&&sv!==dv)return 'Add all to Sum \u00b7 serves '+fmtN(dv)}return f!==1?'Add all to Sum at '+fmtN(f)+'\u00d7':'Add all to Sum'};
-function qtyLine(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
- const srcs=(x.src||[]).map(String),legacy=x.qty?String(x.qty):'';
- if(cs.length>1&&!cs.every(c=>compatU(c.u,cs[0].u))){
-  const cov=new Set(cs.map(c=>String(c.s).toLowerCase())),others=srcs.filter(s=>!cov.has(s.toLowerCase()));
-  return cs.map(c=>esc(fmtN(c.q)+(c.u?' '+c.u:''))+' from '+esc(srcLbl(c.s))).join(' + ')+(others.length?' \u00b7 from '+others.map(s2=>esc(srcLbl(s2))).join(' \u00b7 '):'')+(legacy?' \u00b7 earlier: '+esc(legacy):'')}
- let h='';
- if(cs.length){const tot=cs.reduce((a,c)=>a+c.q,0),uu=cs.map(c=>String(c.u||'')).sort((a,b)=>b.length-a.length)[0];h=esc(fmtN(tot)+(uu?' '+uu:''))}
- if(legacy)h=h?h+' \u00b7 earlier: '+esc(legacy):esc(legacy);
+function sumAmt(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
+ if(cs.length>1&&!cs.every(c=>compatU(c.u,cs[0].u)))return cs.map(c=>fmtN(c.q)+(c.u?' '+c.u:'')).join(' + ');
+ if(cs.length){const tot=cs.reduce((a,c)=>a+c.q,0),uu=cs.map(c=>String(c.u||'')).sort((a,b)=>b.length-a.length)[0];return fmtN(tot)+(uu?' '+uu:'')}
+ return x.qty?String(x.qty):''}
+function sumSub(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
+ const srcs=(x.src||[]).map(String),legacy=x.qty?String(x.qty):'';let h='';
+ if(cs.length&&legacy)h='earlier: '+esc(legacy);
  if(srcs.length)h=h?h+' \u00b7 from '+srcs.map(s2=>esc(srcLbl(s2))).join(' \u00b7 '):'from '+srcs.map(s2=>esc(srcLbl(s2))).join(' \u00b7 ');
  return h}
 function migrate(){let ch=false;presets.forEach(p=>{
@@ -261,7 +260,7 @@ const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  if(!sum.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
- else{h+='<ul>'+sum.map(x=>{const sub=qtyLine(x);return '<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+esc(x.name)+(sub?'<div class="src">'+sub+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>'}).join('')+'</ul>';
+ else{h+='<ul>'+sum.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(x.name)+(sub?'<div class="src">'+sub+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button></li>'}).join('')+'</ul>';
   const cn=contribNames();if(rpSel&&!cn.some(c=>c.key===rpSel))rpSel='';if(!cn.length){rpOpen=false;rpSel=''}
   if(rpOpen)h+=rpHtml(cn);
   else if(!clraOpen)h+=(cn.length?'<div class="row" style="margin-top:14px"><button class="btn sec" id="rpo" style="flex:1;margin-top:0">Remove a preset</button></div>':'')+'<div class="row" style="margin-top:'+(cn.length?'8':'14')+'px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>';
