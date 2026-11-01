@@ -76,6 +76,7 @@ nav button{color:#6a6a6a;display:flex;align-items:center;justify-content:center;
 #intro .mark{color:#f2f2f2;width:min(14.5vw,56px)}#intro .refl{transform:scaleY(-1);margin-top:2px;opacity:.14;-webkit-mask-image:linear-gradient(180deg,#000 0,transparent 70%);mask-image:linear-gradient(180deg,#000 0,transparent 70%)}
 .hlogo{color:#f2f2f2;width:31px}
 svg.wm{width:190px;top:-40px;left:-16px;opacity:.06}
+#pedit{scroll-margin-top:76px}
 </style></head><body>
 <div id="intro"><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="mark"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="mark refl"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg><p>L I S T O</p></div>
 <div class="hd"><button class="logo" id="home" aria-label="Home"><svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700" class="hlogo keep"  role="img" aria-label="Listo logo"><g fill="none" stroke="currentColor" stroke-width="30"><circle cx="500" cy="500" r="320"/><circle cx="500" cy="500" r="215"/><circle cx="701.5" cy="701.5" r="115"/></g></svg></button></div><div id="app"><div class="hdsp"></div><div id="view"></div></div>
@@ -175,16 +176,17 @@ const pFactor=p=>{if(pType(p)!=='recipe')return pMult(p);const sv=pServ(p),dv=pD
 const TLBL={list:'List',instructions:'Instructed list',grocery:'Grocery','grocery-instructions':'Instructed grocery',recipe:'Recipe'};
 const pQty=(p,name)=>{const e=(p.qty||{})[String(name).toLowerCase()];return (e&&typeof e.q==='number'&&isFinite(e.q)&&e.q>0)?{q:e.q,u:String(e.u||'')}:null};
 const pQtyAny=(p,it)=>{const e=pQty(p,itName(it));if(e)return e;const o=(typeof it==='object'&&it)?it:null;return (o&&typeof o.q==='number'&&isFinite(o.q)&&o.q>0)?{q:o.q,u:String(o.u||'')}:null};
+const srcLbl=s=>{const p=presets.find(y=>normName(y.name).toLowerCase()===String(s).toLowerCase());return p?TLBL[pType(p)]+' \u00b7 '+p.name:String(s)};
 const addLbl=p=>{const ct=pType(p),f=pFactor(p);if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);if(sv&&dv&&sv!==dv)return 'Add all to Sum \u00b7 serves '+fmtN(dv)}return f!==1?'Add all to Sum at '+fmtN(f)+'\u00d7':'Add all to Sum'};
 function qtyLine(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
  const srcs=(x.src||[]).map(String),legacy=x.qty?String(x.qty):'';
  if(cs.length>1&&!cs.every(c=>compatU(c.u,cs[0].u))){
   const cov=new Set(cs.map(c=>String(c.s).toLowerCase())),others=srcs.filter(s=>!cov.has(s.toLowerCase()));
-  return cs.map(c=>esc(fmtN(c.q)+(c.u?' '+c.u:''))+' from '+esc(c.s)).join(' + ')+(others.length?' \u00b7 from '+others.map(esc).join(' \u00b7 '):'')+(legacy?' \u00b7 earlier: '+esc(legacy):'')}
+  return cs.map(c=>esc(fmtN(c.q)+(c.u?' '+c.u:''))+' from '+esc(srcLbl(c.s))).join(' + ')+(others.length?' \u00b7 from '+others.map(s2=>esc(srcLbl(s2))).join(' \u00b7 '):'')+(legacy?' \u00b7 earlier: '+esc(legacy):'')}
  let h='';
  if(cs.length){const tot=cs.reduce((a,c)=>a+c.q,0),uu=cs.map(c=>String(c.u||'')).sort((a,b)=>b.length-a.length)[0];h=esc(fmtN(tot)+(uu?' '+uu:''))}
  if(legacy)h=h?h+' \u00b7 earlier: '+esc(legacy):esc(legacy);
- if(srcs.length)h=h?h+' \u00b7 from '+srcs.map(esc).join(' \u00b7 '):'from '+srcs.map(esc).join(' \u00b7 ');
+ if(srcs.length)h=h?h+' \u00b7 from '+srcs.map(s2=>esc(srcLbl(s2))).join(' \u00b7 '):'from '+srcs.map(s2=>esc(srcLbl(s2))).join(' \u00b7 ');
  return h}
 function migrate(){let ch=false;presets.forEach(p=>{
  if(!Array.isArray(p.items)){p.items=presetItems(p);if(p.ids)delete p.ids;ch=true}
@@ -203,6 +205,12 @@ function addToSum(name,src,qc){name=normName(name);if(!name)return;src=normName(
  persist()}
 /*REMOVE PRESET FROM SUM*/
 function contribNames(){const m={},ord=[];sum.forEach(x=>{(x.src||[]).forEach(s=>{const k=String(s).toLowerCase();if(!m[k]){m[k]={key:k,name:String(s),total:0,only:0,shared:0};ord.push(k)}m[k].total++;if(x.src.length===1)m[k].only++;else m[k].shared++})});return ord.map(k=>m[k])}
+function dropSrc(k){let t=0;sum=sum.filter(x=>{const hasS=(x.src||[]).some(s2=>String(s2).toLowerCase()===k),hasC=(x.qtys||[]).some(c2=>String(c2.s).toLowerCase()===k);
+ if(!hasS&&!hasC)return true;t++;
+ x.src=(x.src||[]).filter(s2=>String(s2).toLowerCase()!==k);
+ x.qtys=(x.qtys||[]).filter(c2=>String(c2.s).toLowerCase()!==k);
+ if(!x.src.length&&!x.qtys.length&&!x.keepManual)return false;
+ return true});return t}
 function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px"><div>Remove a preset from Sum</div><div class="mu">Lines only that preset added are removed. Lines it shares with other presets stay, without its label. The saved preset stays in Components.</div>'+cn.map(c=>'<div class="row" style="margin-top:10px"><button class="btn sec" data-rp="'+esc(c.key)+'" style="flex:1;margin-top:0;text-align:left">'+esc(c.name)+' \u00b7 '+c.total+(c.total===1?' line':' lines')+'</button></div>').join('')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>';
  const c=cn.find(x=>x.key===rpSel);if(!c){rpSel='';return ''}
  return '<div class="card p" style="margin-top:14px"><div>Remove '+esc(c.name)+' from Sum?</div><div class="mu">'+(c.only?'This removes the '+c.only+(c.only===1?' line':' lines')+' that only '+esc(c.name)+' added. ':'')+(c.shared?c.shared+' shared '+(c.shared===1?'line stays':'lines stay')+' for your other presets, without the '+esc(c.name)+' label. ':'')+'The saved preset stays in Components.</div><div class="row" style="margin-top:10px"><button class="btn" id="rpgo" style="flex:1;margin-top:0">Remove '+esc(c.name)+'</button><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>'}
@@ -231,12 +239,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  v.querySelectorAll('[data-rp]').forEach(b=>b.onclick=()=>{rpSel=b.dataset.rp;draw()});
  const rpno=$('#rpno');if(rpno)rpno.onclick=()=>{rpOpen=false;rpSel='';draw()};
  const rpgo=$('#rpgo');if(rpgo)rpgo.onclick=()=>{const k=rpSel;const c=contribNames().find(x=>x.key===k),nm=c?c.name:k;
-  sum=sum.filter(x=>{const hasS=(x.src||[]).some(s2=>String(s2).toLowerCase()===k),hasC=(x.qtys||[]).some(c2=>String(c2.s).toLowerCase()===k);
-   if(!hasS&&!hasC)return true;
-   x.src=(x.src||[]).filter(s2=>String(s2).toLowerCase()!==k);
-   x.qtys=(x.qtys||[]).filter(c2=>String(c2.s).toLowerCase()!==k);
-   if(!x.src.length&&!x.qtys.length&&!x.keepManual)return false;
-   return true});
+  dropSrc(k);
   rpOpen=false;rpSel='';note='Removed '+nm+' from Sum.';persist();draw()}}
 function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div><div class="msg">'+esc(note)+'</div>';
  const act=presets.filter(p=>!p.arch),arc=presets.filter(p=>p.arch);
@@ -262,7 +265,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  if(arc.length&&!edP)h+='<h2>Archived</h2><ul>'+arc.map(p=>{const names=presetItems(p).map(it=>esc(itName(it))).join(' \u00b7 ');
   return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(p.name)+'</b></div><div class="vt-r"><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="src">'+esc(TLBL[pType(p)])+'</div><div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pur="'+p.id+'">Restore</button></li>'}).join('')+'</ul>';
  if(edP){const et=edP.type||'list',ef=et==='recipe'?(edP.dserv||1)/(edP.serv||1):(edP.mult||1);
-  h+='<div class="card p"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'">'
+  h+='<div class="card p" id="pedit"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'">'
   +'<label class="f">List type</label><div class="row add-kind">'+['list','instructions','grocery','grocery-instructions','recipe'].map(k=>'<button class="chip'+(et===k?' on':'')+'" data-pt="'+k+'">'+TLBL[k]+'</button>').join('')+'</div>'
   +'<label class="f">Description</label><textarea id="pd" rows="2" autocapitalize="sentences">'+esc(edP.desc||'')+'</textarea>'
   +(et!=='list'&&et!=='grocery'?'<label class="f">Instructions</label><textarea id="pin" rows="4" autocapitalize="sentences">'+esc(edP.instr||'')+'</textarea>':'')
@@ -277,11 +280,11 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   +'<div class="row" style="margin-top:8px;align-items:flex-end"><div style="flex:1;min-width:0"><label class="f" style="margin-top:0">'+(et==='recipe'?'Qty at original servings':'Qty at 1\u00d7')+'</label><input id="pq" inputmode="decimal" autocomplete="off" style="height:44px;min-height:44px" value="'+esc(piQ)+'"></div><div style="flex:1.4;min-width:0"><label class="f" style="margin-top:0">Unit</label><input id="pu" autocapitalize="off" spellcheck="false" style="height:44px;min-height:44px" value="'+esc(piU)+'"></div><button class="ic" id="pib" aria-label="Add item">'+IC.plus+'</button></div>'
   +(pcAsk?'<div style="margin-top:12px">Discard your unsaved changes?</div><div class="row" style="margin-top:10px"><button class="btn sec" id="pck" style="flex:1;margin-top:0">Keep editing</button><button class="btn sec" id="pcd" style="flex:1;margin-top:0">Discard changes</button></div>':'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div>')+'</div>'}
  v.innerHTML=h;
- v.querySelectorAll('[data-np]').forEach(b=>b.onclick=()=>{edP={id:'',name:'',items:[],type:b.dataset.np,desc:'',instr:'',mult:1,serv:1,dserv:1,servSet:true,qty:{}};piVal='';piQ='';piU='';note='';pcAsk=false;draw()});
+ v.querySelectorAll('[data-np]').forEach(b=>b.onclick=()=>{edP={id:'',name:'',items:[],type:b.dataset.np,desc:'',instr:'',mult:1,serv:1,dserv:1,servSet:true,qty:{}};piVal='';piQ='';piU='';note='';pcAsk=false;draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()});
  v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);const svr=pServ(p);edP={id:p.id,name:p.name,items:presetItems(p).map(itName),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p),serv:svr||1,dserv:pDserv(p)||Math.max(1,Math.round(pMult(p)*(svr||1))),servSet:!!svr,qty:{}};
   presetItems(p).forEach(it=>{const e=pQtyAny(p,it);if(e)edP.qty[itName(it).toLowerCase()]={q:e.q,u:e.u}});
-  piVal='';piQ='';piU='';note='';pcAsk=false;draw()});
- v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{presets=presets.filter(y=>y.id!==b.dataset.px);persist();draw()});
+  piVal='';piQ='';piU='';note='';pcAsk=false;draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()});
+ v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id!==b.dataset.px);if(!p)return;presets=presets.filter(y=>y.id!==b.dataset.px);const k=normName(p.name).toLowerCase(),t=k?dropSrc(k):0;note='Deleted '+p.name+'.'+(t?' Removed it from Sum too.':'');persist();draw()});
  v.querySelectorAll('[data-par]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.par);if(p){p.arch=Date.now();note='Archived '+p.name+'. Find it under Archived.';persist()}draw()});
  v.querySelectorAll('[data-pur]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pur);if(p){delete p.arch;note='Restored '+p.name+'.';persist()}draw()});
  v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){const f=pFactor(p),ct=pType(p);
