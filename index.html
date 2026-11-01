@@ -369,6 +369,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   else{const qn=Number(qv);
    if(!isFinite(qn)||qn<=0){note='Quantity needs to be a number.';draw();return}
    if(!e||e.q!==qn||e.u!==un){edP.qty[k]={q:qn,u:un};pcAsk=false}}
+  if(note){note='';const nm=v.querySelector('.msg');if(nm)nm.textContent=''}
   const qh=v.querySelector('[data-qh="'+i+'"]');
   if(qh){const e3=(edP.qty||{})[k],ef2=(edP.type||'list')==='recipe'?(edP.dserv||1)/(edP.serv||1):(edP.mult||1);
    qh.innerHTML=e3?'= '+fmtN(e3.q*ef2)+(e3.u?' '+esc(e3.u):''):''}};
