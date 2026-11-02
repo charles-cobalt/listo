@@ -200,12 +200,14 @@ async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&
  try{const ref=doc(db,'shares',code);
   if(shCode){shareStamp(!sharePrimed);const L=shareLocalState(),s=await getDoc(ref);
    if(!s.exists()){await setDoc(ref,encShare(L,user.uid))}
-   else{const d=s.data();if(d.owner&&d.owner!==user.uid){shareNote='That share belongs to another account. It was unlinked here.';unlinkShare();draw();sharePushing=false;return}
+   else{const d=s.data();if(d.dead){shareNote='The shared list ended.';unlinkShare();draw();sharePushing=false;return}
+   if(d.owner&&d.owner!==user.uid){shareNote='That share belongs to another account. It was unlinked here.';unlinkShare();draw();sharePushing=false;return}
     const R=decodeShare(d),M=merge(L,R);
     if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,user.uid));
     if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}}}
   else{jvStamp(!jvPrimed);const L=jvLocalState(),s=await getDoc(ref);
    if(!s.exists()){if(jvSeen){note='That shared list ended.';shareNote='';unlinkJoin();draw()}sharePushing=false;return}
+   if(s.data().dead){note='That shared list ended.';shareNote='';unlinkJoin();draw();sharePushing=false;return}
    const R=decodeShare(s.data()),M=merge(L,R);
    if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,s.data().owner||''));
    if(sigOf(M)!==sigOf(L)){shareState(M);if(page==='sum')draw()}}
@@ -219,6 +221,7 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
  shUnsub=onSnapshot(ref,s=>{if(!shCode)return;
   if(!s.exists()){if(shareSeen){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw()}return}
   if(s.metadata.hasPendingWrites)return;
+  if(s.data().dead){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw();return}
   const R=decodeShare(s.data());shareStamp(!sharePrimed);sharePrimed=true;
   const L=shareLocalState(),M=merge(L,R);
   if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}
@@ -231,6 +234,7 @@ function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
   if(!s.exists()){if(jvSeen){note='That shared list ended.';shareNote='';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
   jvSeen=true;shareNote='';
   if(s.metadata.hasPendingWrites)return;
+  if(s.data().dead){note='That shared list ended.';shareNote='';unlinkJoin();if(page==='sum')draw();return}
   const R=decodeShare(s.data());jvStamp(!jvPrimed);jvPrimed=true;
   const L=jvLocalState(),M=merge(L,R);
   if(sigOf(M)!==sigOf(L))shareState(M);
@@ -244,7 +248,7 @@ async function createShare(){if(shCode)return;const code=randCode(16),ref=doc(db
  catch(e){shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();draw();return}
  startShare()}
 async function endShare(){const code=shCode;if(!code)return false;
- try{await deleteDoc(doc(db,'shares',code));unlinkShare();return true}
+ try{await setDoc(doc(db,'shares',code),{dead:true,u:{},mt:{},del:{},ord:[],ordAt:0,updated:Date.now()},{merge:true});unlinkShare();return true}
  catch(e){shareNote='Could not end the share'+(user?'':'. Sign in first.')+'.';draw();return false}}
 function unlinkShare(){shCode='';try{localStorage.removeItem(SHK)}catch(e){}try{localStorage.removeItem(SHSY)}catch(e){}
  shareBase={};shareMt={};shareDel={};shareOrdH='';shareOrdAt=0;sharePrimed=false;shareSeen=false;
