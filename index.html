@@ -303,7 +303,7 @@ const sortView=(arr,si,nm,tp)=>{const S=tp?SORTS_C:SORTS,s=S[si]||S[0],k=s[0],re
   a.sort((x,y)=>{const d=TORD.indexOf(tp(x))-TORD.indexOf(tp(y));return d||crit(x,y)})}
  if(rev)a.reverse();return a};
 function sortUI(){const b=$('#sortb'),l=$('#sortl');if(!b)return;
- const on=page==='sum'?sum.length>1:(page==='components'&&presets.filter(p=>!p.arch).length>1);
+ const on=page==='sum'?sum.length>1:(page==='components'&&!capStrip(cq).replace(/\*/g,'').trim()&&presets.filter(p=>!p.arch).length>1);
  b.style.display=on?'flex':'none';l.style.display=on?'flex':'none';if(!on)return;
  const s=(page==='sum'?SORTS:SORTS_C)[page==='sum'?sortS:sortC]||SORTS[0];l.textContent=s[1]+(s[2]===1?' \u2191':' \u2193')}
 function dragReorder(e,li,ul,done){if(!li||!ul)return;e.preventDefault();const pid=e.pointerId,y0=e.clientY,off0=li.offsetTop;let moved=false;li.classList.add('drag');
