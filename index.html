@@ -173,8 +173,26 @@ function switchOwner(n){if(n===OWNER)return;
  OWNER=n;localStorage.setItem(ONK,OWNER);if(n)localStorage.setItem(LK,'1')}
 ['visibilitychange','focus','pageshow','online'].forEach(ev=>addEventListener(ev,()=>{if(user&&!document.hidden)schedPush(400)}));
 /*DATA*/
+/*CAP: saved capitalization formatting. Titles/names title case; notes/descriptions sentence case. *...* kept verbatim.*/
+const CAPKT=new Set('MNQ NQ ES MES YM MYM RTY CL GC SI HG ZB ZN SPX NDX DJI VIX DXY EUR USD GBP JPY AUD CAD NZD CHF GDP CPI PPI NFP FOMC ATR OTE RTH ETH ICT SMT FVG BOS USDA ON AM PM R'.split(' ')),CAPKS=new Set([...CAPKT].filter(x=>x!=='ON')),CAPSM=new Set('a an and as at but by for in nor of on or per so the to vs via with de la el'.split(' '));
+function capProt(w,sent){const c=String(w).replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g,'');if(!c)return w;
+ if(/\d/.test(c))return w;
+ const up=c.toUpperCase();if((sent?CAPKS:CAPKT).has(up))return w.replace(c,up);
+ if(/[a-z]/.test(c)&&/[A-Z]/.test(c.slice(1)))return w;
+ if(/^[A-Z][A-Z+]*\+$/.test(c))return w;
+ return null}
+const capStrip=s=>String(s==null?'':s).replace(/\*([^*]*)\*/g,'$1');
+function capTitle(s){return String(s==null?'':s).split(/(\*[^*]*\*)/).map((p,pi)=>{if(pi%2)return p;
+ const toks=p.split(/(\s+)/),n=toks.filter(t=>t&&!/^\s+$/.test(t)).length;let k=0;
+ return toks.map(t=>{if(!t||/^\s+$/.test(t))return t;k++;const pr=capProt(t,false);if(pr)return pr;
+  const lw=t.toLowerCase(),core=lw.replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,'');
+  if(k>1&&k<n&&CAPSM.has(core))return lw;
+  return lw.replace(/[a-z]/,m=>m.toUpperCase())}).join('')}).join('')}
+function capSent(s){return String(s==null?'':s).split(/(\*[^*]*\*)/).map((p,pi)=>{if(pi%2)return p;
+ const t=p.split(/(\s+)/).map(w=>{if(!w||/^\s+$/.test(w))return w;const pr=capProt(w,true);return pr||w.toLowerCase()}).join('');
+ return t.replace(/(^|[.!?]|\n)(\s*)([a-z])/g,(m,a,b,c)=>a+b+c.toUpperCase()).replace(/\bi\b/g,'I')}).join('')}
 const normName=s=>String(s||'').trim();
-const pTitle=s=>String(s||'').toUpperCase();
+const pTitle=s=>capTitle(s);const pShow=s=>capStrip(pTitle(s));
 function presetItems(p){if(Array.isArray(p.items))return p.items;return (p.ids||[]).map(id=>{const c=comps.find(c=>c.id===id);return c?c.name:null}).filter(Boolean)}
 const fmtN=n=>{const r=Math.round(n*100)/100;return String(r)};
 const itName=it=>typeof it==='string'?it:String(it&&it.n||'');
@@ -189,7 +207,7 @@ const pFactor=p=>{if(pType(p)!=='recipe')return pMult(p);const sv=pServ(p),dv=pD
 const TLBL={list:'List',instructions:'Instructed list',grocery:'Grocery','grocery-instructions':'Instructed grocery',recipe:'Recipe'};
 const pQty=(p,name)=>{const e=(p.qty||{})[String(name).toLowerCase()];return (e&&typeof e.q==='number'&&isFinite(e.q)&&e.q>0)?{q:e.q,u:String(e.u||'')}:null};
 const pQtyAny=(p,it)=>{const e=pQty(p,itName(it));if(e)return e;const o=(typeof it==='object'&&it)?it:null;return (o&&typeof o.q==='number'&&isFinite(o.q)&&o.q>0)?{q:o.q,u:String(o.u||'')}:null};
-const srcLbl=s=>{const p=presets.find(y=>normName(y.name).toLowerCase()===String(s).toLowerCase());return p?TLBL[pType(p)]+' \u2022 '+p.name:String(s)};
+const srcLbl=s=>{const p=presets.find(y=>normName(y.name).toLowerCase()===String(s).toLowerCase());return p?TLBL[pType(p)]+' \u2022 '+capStrip(p.name):capStrip(String(s))};
 const addLbl=p=>{const ct=pType(p),f=pFactor(p);if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);if(sv&&dv&&sv!==dv)return 'Add all to Sum \u00b7 serves '+fmtN(dv)}return f!==1?'Add all to Sum at '+fmtN(f)+'\u00d7':'Add all to Sum'};
 function sumAmt(x){const cs=(x.qtys||[]).filter(c=>c&&typeof c.q==='number'&&isFinite(c.q));
  if(cs.length>1&&!cs.every(c=>compatU(c.u,cs[0].u)))return cs.map(c=>fmtN(c.q)+(c.u?' '+c.u:'')).join(' + ');
@@ -211,7 +229,7 @@ function migrate(){let ch=false;presets.forEach(p=>{
    if(nm&&typeof it.q==='number'&&isFinite(it.q)&&it.q>0&&!q[nm.toLowerCase()])q[nm.toLowerCase()]={q:it.q,u:String(it.u||'')};
    return nm}).filter(n2=>n2);
   if(Object.keys(q).length)p.qty=q;ch=true}});if(comps.length){comps.forEach(c=>{const ex=presets.find(p=>p.id==='mig-'+c.id);if(ex){if(!ex.items.some(n=>n.toLowerCase()===c.name.toLowerCase()))ex.items.push(c.name)}else presets.push({id:'mig-'+c.id,name:c.name,items:[c.name],at:c.at||Date.now()})});comps=[];ch=true}if(ch)persist()}
-function addToSum(name,src,qc){name=normName(name);if(!name)return;src=normName(src);const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());
+function addToSum(name,src,qc){name=capTitle(normName(name));if(!name)return;src=capTitle(normName(src));const ex=sum.find(x=>x.name.toLowerCase()===name.toLowerCase());
  if(ex){if(src&&!(ex.src||[]).length&&!(ex.qtys||[]).length)ex.keepManual=true;
   const was=ex.done;if(was)ex.done=false;let added=false;
   if(src&&!(ex.src||[]).some(s=>String(s).toLowerCase()===src.toLowerCase())){ex.src=(ex.src||[]).concat([src]);added=true}
@@ -227,9 +245,9 @@ function dropSrc(k){let t=0;sum=sum.filter(x=>{const hasS=(x.src||[]).some(s2=>S
  x.qtys=(x.qtys||[]).filter(c2=>String(c2.s).toLowerCase()!==k);
  if(!x.src.length&&!x.qtys.length&&!x.keepManual)return false;
  return true});return t}
-function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px"><div>Remove a preset from Sum</div><div class="mu">Lines only that preset added are removed. Lines it shares with other presets stay, without its label. The saved preset stays in Components.</div>'+cn.map(c=>'<div class="row" style="margin-top:10px"><button class="btn sec" data-rp="'+esc(c.key)+'" style="flex:1;margin-top:0;text-align:left">'+esc(pTitle(c.name))+' \u00b7 '+c.total+(c.total===1?' line':' lines')+'</button></div>').join('')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>';
+function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px"><div>Remove a preset from Sum</div><div class="mu">Lines only that preset added are removed. Lines it shares with other presets stay, without its label. The saved preset stays in Components.</div>'+cn.map(c=>'<div class="row" style="margin-top:10px"><button class="btn sec" data-rp="'+esc(c.key)+'" style="flex:1;margin-top:0;text-align:left">'+esc(pShow(c.name))+' \u00b7 '+c.total+(c.total===1?' line':' lines')+'</button></div>').join('')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>';
  const c=cn.find(x=>x.key===rpSel);if(!c){rpSel='';return ''}
- return '<div class="card p" style="margin-top:14px"><div>Remove '+esc(pTitle(c.name))+' from Sum?</div><div class="mu">'+(c.only?'This removes the '+c.only+(c.only===1?' line':' lines')+' that only '+esc(pTitle(c.name))+' added. ':'')+(c.shared?c.shared+' shared '+(c.shared===1?'line stays':'lines stay')+' for your other presets, without the '+esc(pTitle(c.name))+' label. ':'')+'The saved preset stays in Components.</div><div class="row" style="margin-top:10px"><button class="btn" id="rpgo" style="flex:1;margin-top:0">Remove '+esc(pTitle(c.name))+'</button><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>'}
+ return '<div class="card p" style="margin-top:14px"><div>Remove '+esc(pShow(c.name))+' from Sum?</div><div class="mu">'+(c.only?'This removes the '+c.only+(c.only===1?' line':' lines')+' that only '+esc(pShow(c.name))+' added. ':'')+(c.shared?c.shared+' shared '+(c.shared===1?'line stays':'lines stay')+' for your other presets, without the '+esc(pShow(c.name))+' label. ':'')+'The saved preset stays in Components.</div><div class="row" style="margin-top:10px"><button class="btn" id="rpgo" style="flex:1;margin-top:0">Remove '+esc(pShow(c.name))+'</button><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>'}
 /*IMPORT*/
 const AIM='gemini-3.5-flash';let _aiM=null;
 const aiModel=()=>{if(!_aiM)_aiM=getGenerativeModel(getAI(fapp,{backend:new GoogleAIBackend()}),{model:AIM,generationConfig:{responseMimeType:'application/json'}});return _aiM};
@@ -297,7 +315,7 @@ const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  if(!sum.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>Add from your Components.</div>'}
- else{const svw=sortView(sum,sortS,x=>x.name);h+='<ul id="sumlist">'+svw.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'" data-iid="'+x.id+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(x.name)+(sub?'<div class="src">'+sub+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button>'+(sortS===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</li>'}).join('')+'</ul>';
+ else{const svw=sortView(sum,sortS,x=>x.name);h+='<ul id="sumlist">'+svw.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'" data-iid="'+x.id+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(capStrip(x.name))+(sub?'<div class="src">'+capStrip(sub)+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button>'+(sortS===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</li>'}).join('')+'</ul>';
   const cn=contribNames();if(rpSel&&!cn.some(c=>c.key===rpSel))rpSel='';if(!cn.length){rpOpen=false;rpSel=''}
   if(rpOpen)h+=rpHtml(cn);
   else if(!clraOpen)h+=(cn.length?'<div class="row" style="margin-top:14px"><button class="btn sec" id="rpo" style="flex:1;margin-top:0">Remove a preset</button></div>':'')+'<div class="row" style="margin-top:'+(cn.length?'8':'14')+'px">'+(sum.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button></div>';
@@ -319,7 +337,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
  const rpno=$('#rpno');if(rpno)rpno.onclick=()=>{rpOpen=false;rpSel='';draw()};
  const rpgo=$('#rpgo');if(rpgo)rpgo.onclick=()=>{const k=rpSel;const c=contribNames().find(x=>x.key===k),nm=c?c.name:k;
   dropSrc(k);
-  rpOpen=false;rpSel='';note='Removed '+pTitle(nm)+' from Sum.';persist();draw()}}
+  rpOpen=false;rpSel='';note='Removed '+pShow(nm)+' from Sum.';persist();draw()}}
 function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div><div class="msg">'+esc(note)+'</div>';
  if(!edP){h+='<h2>Import</h2>';
   if(imp)h+='<div class="card p" style="margin-bottom:24px"><div>'+esc(imp.stage)+'</div>'+(imp.sub?'<div class="mu" style="margin-top:4px">'+esc(imp.sub)+'</div>':'')+'</div>';
@@ -327,17 +345,17 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  h+='<input type="file" id="impf" accept="image/*,.heic,.heif,application/pdf,.pdf,text/plain,text/markdown,text/csv,.txt,.md,.csv" style="display:none">';
  const act=presets.filter(p=>!p.arch),arc=presets.filter(p=>p.arch);
  const pCard=p=>{const ct=pType(p),f=pFactor(p);
-  const names=presetItems(p).map(it=>{const e=pQtyAny(p,it);return (e?'('+fmtN(e.q*f)+(e.u?' '+esc(e.u):'')+') ':'')+esc(itName(it))}).join(' \u00b7 ');
+  const names=presetItems(p).map(it=>{const e=pQtyAny(p,it);return (e?'('+fmtN(e.q*f)+(e.u?' '+esc(e.u):'')+') ':'')+esc(capStrip(itName(it)))}).join(' \u00b7 ');
   const meta=[];if(ct==='instructions'||ct==='grocery-instructions')meta.push(TLBL[ct]);
   if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);
    if(sv&&dv){if(sv!==dv)meta.push('Servings '+fmtN(sv)+' \u2192 '+fmtN(dv));else if(sv!==1)meta.push('Servings '+fmtN(sv))}
    else if(f!==1)meta.push('Scaling \u00d7'+fmtN(f))}
   else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
-  let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+(sortC===0||sortC===10?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
+  let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pShow(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+(sortC===0||sortC===10?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
   if(meta.length)ch+='<div class="src">'+meta.map(esc).join(' \u00b7 ')+'</div>';
-  if(p.desc)ch+='<div class="src big" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(p.desc).replace(/\n/g,'<br>')+'</div>';
+  if(p.desc)ch+='<div class="src big" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(capStrip(p.desc)).replace(/\n/g,'<br>')+'</div>';
   ch+='<div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div>';
-  if(ct!=='list'&&ct!=='grocery'&&p.instr)ch+='<div class="src big">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(p.instr).replace(/\n/g,'<br>')+'</div>';
+  if(ct!=='list'&&ct!=='grocery'&&p.instr)ch+='<div class="src big">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(capStrip(p.instr)).replace(/\n/g,'<br>')+'</div>';
   ch+='<button class="chip sm" data-pa="'+p.id+'">'+addLbl(p)+'</button><button class="lnk" data-par="'+p.id+'" style="padding:8px 4px 0">Archive</button></li>';return ch};
  [['lists','Lists','list','New list'],['groceries','Groceries','grocery','New grocery'],['recipes','Recipes','recipe','New recipe']].forEach(sc=>{
   const lst=sortView(act.filter(p=>pSection(p)===sc[0]),sortC,p=>pTitle(p.name),pType);
@@ -345,8 +363,8 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   if(lst.length)h+='<ul data-sec="'+sc[0]+'">'+lst.map(pCard).join('')+'</ul>';
   else h+='<div class="mu" style="margin:-4px 2px 14px">None yet.</div>';
   if(!edP)h+='<div style="margin:0 0 24px"><button class="btn sec" data-np="'+sc[2]+'" style="margin-top:0">'+sc[3]+'</button></div>'});
- if(arc.length&&!edP)h+='<h2>Archived</h2><ul>'+arc.map(p=>{const names=presetItems(p).map(it=>esc(itName(it))).join(' \u00b7 ');
-  return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="src">'+esc(TLBL[pType(p)])+'</div><div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pur="'+p.id+'">Restore</button></li>'}).join('')+'</ul>';
+ if(arc.length&&!edP)h+='<h2>Archived</h2><ul>'+arc.map(p=>{const names=presetItems(p).map(it=>esc(capStrip(itName(it)))).join(' \u00b7 ');
+  return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(pShow(p.name))+'</b></div><div class="vt-r"><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="src">'+esc(TLBL[pType(p)])+'</div><div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pur="'+p.id+'">Restore</button></li>'}).join('')+'</ul>';
  if(edP){const et=edP.type||'list',ef=et==='recipe'?(edP.dserv||1)/(edP.serv||1):(edP.mult||1);
   h+='<div class="card p" id="pedit"><label class="f">Preset name</label><input id="pn" autocapitalize="sentences" spellcheck="false" value="'+esc(edP.name)+'">'
   +'<label class="f">List type</label><div class="row add-kind">'+['list','instructions','grocery','grocery-instructions','recipe'].map(k=>'<button class="chip'+(et===k?' on':'')+'" data-pt="'+k+'">'+TLBL[k]+'</button>').join('')+'</div>'
@@ -369,9 +387,9 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);const svr=pServ(p);edP={id:p.id,name:pTitle(p.name),items:presetItems(p).map(itName),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p),serv:svr||1,dserv:pDserv(p)||Math.max(1,Math.round(pMult(p)*(svr||1))),servSet:!!svr,qty:{}};
   presetItems(p).forEach(it=>{const e=pQtyAny(p,it);if(e)edP.qty[itName(it).toLowerCase()]={q:e.q,u:e.u}});
   piVal='';piQ='';piU='';note='';pcAsk=false;draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()});
- v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.px);if(!p)return;presets=presets.filter(y=>y.id!==b.dataset.px);const k=normName(p.name).toLowerCase(),t=k?dropSrc(k):0;note='Deleted '+pTitle(p.name)+'.'+(t?' Removed it from Sum too.':'');persist();draw()});
- v.querySelectorAll('[data-par]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.par);if(p){p.arch=Date.now();note='Archived '+pTitle(p.name)+'. Find it under Archived.';persist()}draw()});
- v.querySelectorAll('[data-pur]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pur);if(p){delete p.arch;note='Restored '+pTitle(p.name)+'.';persist()}draw()});
+ v.querySelectorAll('[data-px]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.px);if(!p)return;presets=presets.filter(y=>y.id!==b.dataset.px);const k=normName(p.name).toLowerCase(),t=k?dropSrc(k):0;note='Deleted '+pShow(p.name)+'.'+(t?' Removed it from Sum too.':'');persist();draw()});
+ v.querySelectorAll('[data-par]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.par);if(p){p.arch=Date.now();note='Archived '+pShow(p.name)+'. Find it under Archived.';persist()}draw()});
+ v.querySelectorAll('[data-pur]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pur);if(p){delete p.arch;note='Restored '+pShow(p.name)+'.';persist()}draw()});
  v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){const f=pFactor(p),ct=pType(p);
   presetItems(p).forEach(it=>{const e=pQtyAny(p,it);addToSum(itName(it),p.name,e?{q:e.q*f,u:e.u}:null)});
   const sva=pServ(p),dva=pDserv(p);
@@ -418,7 +436,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  v.querySelectorAll('[data-eq]').forEach(inp=>{inp.onchange=()=>commitQE(+inp.dataset.eq)});
  v.querySelectorAll('[data-eu]').forEach(inp=>{inp.onchange=()=>commitQE(+inp.dataset.eu)});
  const ps=$('#ps');if(ps)ps.onclick=()=>{const nm=pTitle(normName(edP.name));if(!nm){note='Name the preset first.';draw();return}
-  const rec={name:nm,type:edP.type||'list',desc:(edP.desc||'').trim(),instr:(edP.instr||'').trim(),mult:edP.mult||1,items:edP.items.slice(),qty:{}};
+  const rec={name:nm,type:edP.type||'list',desc:capSent((edP.desc||'').trim()),instr:capSent((edP.instr||'').trim()),mult:edP.mult||1,items:edP.items.map(x=>typeof x==='string'?capTitle(normName(x)):x),qty:{}};
   if(rec.type==='recipe'&&edP.servSet){rec.serv=edP.serv||1;rec.dserv=edP.dserv||1}
   Object.keys(edP.qty||{}).forEach(k=>{if(rec.items.some(n2=>n2.toLowerCase()===k))rec.qty[k]=edP.qty[k]});
   if(edP.id){const p=presets.find(y=>y.id===edP.id);if(p){p.name=rec.name;p.type=rec.type;p.desc=rec.desc;p.instr=rec.instr;p.mult=rec.mult;if('serv' in rec){p.serv=rec.serv;p.dserv=rec.dserv}p.items=rec.items;if(Object.keys(rec.qty).length)p.qty=rec.qty;else delete p.qty;p.edited=Date.now()}}
@@ -433,7 +451,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  const pd=$('#pcd');if(pd)pd.onclick=()=>{edP=null;piVal='';piQ='';piU='';note='';pcAsk=false;draw()}}
 /*SHARE IMAGE*/
 async function sharePreset(p){try{const ct=pType(p),f=pFactor(p);
- const items=presetItems(p).map(it=>{const e=pQtyAny(p,it);return {n:itName(it),t:e?'('+fmtN(e.q*f)+(e.u?' '+e.u:'')+')':''}});
+ const items=presetItems(p).map(it=>{const e=pQtyAny(p,it);return {n:capStrip(itName(it)),t:e?'('+fmtN(e.q*f)+(e.u?' '+e.u:'')+')':''}});
  const meta=[];if(ct==='instructions'||ct==='grocery-instructions')meta.push(TLBL[ct]);
  if(ct==='recipe'){const sv=pServ(p),dv=pDserv(p);if(sv&&dv){if(sv!==dv)meta.push('Servings '+fmtN(sv)+' \u2192 '+fmtN(dv));else if(sv!==1)meta.push('Servings '+fmtN(sv))}else if(f!==1)meta.push('Scaling \u00d7'+fmtN(f))}
  else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
@@ -444,12 +462,12 @@ async function sharePreset(p){try{const ct=pType(p),f=pFactor(p);
  const wrap=(text,font,firstPad)=>{cx.font=font;const out=[];let fp=firstPad||0;String(text).split('\n').forEach(par=>{const ws=par.split(/\s+/).filter(Boolean);if(!ws.length){out.push('');fp=0;return}let line='';ws.forEach(wd=>{const t=line?line+' '+wd:wd;if(cx.measureText(t).width<=CW-fp)line=t;else{if(line){out.push(line);fp=0}line=wd}});if(line){out.push(line);fp=0}});return out};
  const ops=[];let y=PAD+42;
  const push=(text,font,color,lh,gap)=>{wrap(text,font).forEach(ln=>{ops.push({ln,font,color,y});y+=lh});y+=gap};
- push(pTitle(p.name),'700 46px '+FF,TX,56,12);
+ push(pShow(p.name),'700 46px '+FF,TX,56,12);
  if(meta.length)push(meta.join(' \u00b7 ').toUpperCase(),'600 20px '+FF,MU,28,18);
- if(p.desc)push(p.desc,'400 26px '+FF,MU,36,18);
+ if(p.desc)push(capStrip(p.desc),'400 26px '+FF,MU,36,18);
  items.forEach(it=>{const qf='400 30px '+FF;let qw=0;if(it.t){cx.font=qf;qw=cx.measureText(it.t+' ').width}const lines=wrap(it.n,qf,qw);lines.forEach((ln,i)=>{ops.push({ln,font:qf,color:TX,y,qty:i===0?it.t:'',qw:i===0?qw:0});y+=44})});
  if(items.length)y+=6;
- if(ct!=='list'&&ct!=='grocery'&&p.instr){push('Instructions','600 20px '+FF,MU,28,6);push(p.instr,'400 26px '+FF,MU,38,10)}
+ if(ct!=='list'&&ct!=='grocery'&&p.instr){push('Instructions','600 20px '+FF,MU,28,6);push(capStrip(p.instr),'400 26px '+FF,MU,38,10)}
  y+=70;
  cv.width=W;cv.height=y;
  const g=cx.createLinearGradient(0,0,0,cv.height);g.addColorStop(0,G0);g.addColorStop(1,G1);cx.fillStyle=g;cx.fillRect(0,0,W,cv.height);
@@ -493,9 +511,9 @@ function presetMeta(p){const ct=pType(p),f=pFactor(p),meta=[TLBL[ct]];
  return meta.join(' \u00b7 ')}
 const presetLines=p=>presetItems(p).map(it=>{const e=pQtyAny(p,it),f=pFactor(p);return (e?'('+fmtN(e.q*f)+(e.u?' '+e.u:'')+') ':'')+itName(it)});
 function listBlocks(){const B=[];
- if(sum.length)B.push({t:'Sum',lines:sum.map(x=>{const a=sumAmt(x),sb=sumSubPlain(x);return (a?'('+a+') ':'')+x.name+(sb?' - '+sb:'')})});
+ if(sum.length)B.push({t:'Sum',lines:sum.map(x=>{const a=sumAmt(x),sb=sumSubPlain(x);return capStrip((a?'('+a+') ':'')+x.name+(sb?' - '+sb:''))})});
  const act=presets.filter(p=>!p.arch),arc=presets.filter(p=>p.arch);
- const sec=(t,arr)=>{if(!arr.length)return;const lines=[];arr.forEach(p=>{lines.push(pTitle(p.name)+' - '+presetMeta(p));if(p.desc)lines.push(String(p.desc));presetLines(p).forEach(l=>lines.push(l));if(pType(p)!=='list'&&pType(p)!=='grocery'&&p.instr)lines.push('Instructions: '+String(p.instr));lines.push('')});lines.pop();B.push({t,lines})};
+ const sec=(t,arr)=>{if(!arr.length)return;const lines=[];arr.forEach(p=>{lines.push(pShow(p.name)+' - '+presetMeta(p));if(p.desc)lines.push(capStrip(String(p.desc)));presetLines(p).forEach(l=>lines.push(capStrip(l)));if(pType(p)!=='list'&&pType(p)!=='grocery'&&p.instr)lines.push('Instructions: '+capStrip(String(p.instr)));lines.push('')});lines.pop();B.push({t,lines})};
  sec('Presets',act);sec('Archived presets',arc);
  return B}
 const expDate=()=>new Date().toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
@@ -504,10 +522,10 @@ function listsTxt(){const L=['LISTO','Exported '+expDate()+'. Readable copy for 
  return L.join('\n')}
 function listsCsv(){const q=v=>{v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
  const R=[['Section','List','Item','Quantity','Unit','Notes']];
- sum.forEach(x=>{const a=sumAmt(x);let qq='',uu='';const m=/^([\d.]+)\s*(.*)$/.exec(a);if(m){qq=m[1];uu=m[2]}R.push(['Sum','',x.name,qq,uu,sumSubPlain(x)])});
- presets.forEach(p=>{const sec=p.arch?'Archived preset':'Preset';R.push([sec,pTitle(p.name),'','','',presetMeta(p)+(p.desc?' \u00b7 '+p.desc:'')]);
-  presetItems(p).forEach(it=>{const e=pQtyAny(p,it),f=pFactor(p);R.push([sec,pTitle(p.name),itName(it),e?fmtN(e.q*f):'',e?String(e.u||''):'',''])});
-  if(pType(p)!=='list'&&pType(p)!=='grocery'&&p.instr)R.push([sec,pTitle(p.name),'Instructions','','',String(p.instr)])});
+ sum.forEach(x=>{const a=sumAmt(x);let qq='',uu='';const m=/^([\d.]+)\s*(.*)$/.exec(a);if(m){qq=m[1];uu=m[2]}R.push(['Sum','',capStrip(x.name),qq,uu,capStrip(sumSubPlain(x))])});
+ presets.forEach(p=>{const sec=p.arch?'Archived preset':'Preset';R.push([sec,pShow(p.name),'','','',capStrip(presetMeta(p)+(p.desc?' \u00b7 '+p.desc:''))]);
+  presetItems(p).forEach(it=>{const e=pQtyAny(p,it),f=pFactor(p);R.push([sec,pShow(p.name),capStrip(itName(it)),e?fmtN(e.q*f):'',e?String(e.u||''):'',''])});
+  if(pType(p)!=='list'&&pType(p)!=='grocery'&&p.instr)R.push([sec,pShow(p.name),'Instructions','','',capStrip(String(p.instr))])});
  return R.map(r=>r.map(q).join(',')).join('\n')}
 function mkListsPdf(){const PW=612,PH=792,MX=48,MT=54,MB=60,AW=PW-2*MX;
  const cx=document.createElement('canvas').getContext('2d');
@@ -579,7 +597,8 @@ function draw(top){document.querySelectorAll('nav button').forEach(b=>b.classLis
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';bkPend=null;bkNote='';draw(true)});
 $('#sortb').onclick=()=>{if(page==='sum'){sortS=(sortS+1)%SORTS.length;try{localStorage.setItem('listo.sort.s',String(sortS))}catch(e){}}else if(page==='components'){sortC=(sortC+1)%SORTS_C.length;try{localStorage.setItem('listo.sort.c',String(sortC))}catch(e){}}else return;draw()};
 $('#home').onclick=()=>{page='sum';note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';bkPend=null;bkNote='';draw(true)};
-(function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}migrate()})();
+(function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}migrate()})()
+(function capMig(){let ch=false;presets.forEach(p=>{if(!p)return;const n2=pTitle(p.name);if(n2!==p.name){p.name=n2;ch=true}if(p.desc){const d2=capSent(p.desc);if(d2!==p.desc){p.desc=d2;ch=true}}if(p.instr){const i2=capSent(p.instr);if(i2!==p.instr){p.instr=i2;ch=true}}if(Array.isArray(p.items))p.items=p.items.map(x=>{if(typeof x!=='string')return x;const t=capTitle(normName(x));if(t!==x)ch=true;return t})});sum.forEach(x=>{if(!x)return;const n2=capTitle(x.name);if(n2!==x.name){x.name=n2;ch=true}if(Array.isArray(x.src))x.src=x.src.map(s2=>{const t=pTitle(s2);if(t!==s2)ch=true;return t});if(Array.isArray(x.qtys))x.qtys.forEach(c=>{const t=pTitle(c.s);if(t!==c.s){c.s=t;ch=true}})});comps.forEach(c=>{if(c&&c.name){const n2=capTitle(c.name);if(n2!==c.name){c.name=n2;ch=true}}});if(ch)persist()})();
 onAuthStateChanged(auth,u=>{user=u;if(unsub){unsub();unsub=null}
  if(u){switchOwner(u.uid);unsub=onSnapshot(doc(db,'users',u.uid),s=>{if(!s.metadata.hasPendingWrites)schedPush(50)},e=>{msg='Sync unavailable: '+e.code;if(page==='settings')draw()});schedPush(50)}
  else switchOwner('');
