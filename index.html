@@ -107,7 +107,7 @@ const IC={
  chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
  grip:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>',
  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square"><path d="M12 4v11M7.5 8.5L12 4l4.5 4.5M5 13v6h14v-6"/></svg>'};
-let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edP=null,imp=null,nsVal='',piVal='',piQ='',piU='',rstOpen=false,rchk=false,rtxt='',rnote='',clraOpen=false,clraTxt='',pcAsk=false,rpOpen=false,rpSel='',bkPend=null,bkNote='';
+let page='sum',comps=[],presets=[],sum=[],user=null,unsub=null,msg='',note='',syncAt=0,edP=null,imp=null,nsVal='',piVal='',piQ='',piU='',rstOpen=false,rchk=false,rtxt='',rnote='',clraOpen=false,clraTxt='',pcAsk=false,rpOpen=false,rpSel='',bkPend=null,bkNote='',cq='';
 const theme=()=>localStorage.getItem(TK)||'auto';
 function applyTheme(){const t=theme(),d=t==='day'||(t==='auto'&&matchMedia('(prefers-color-scheme: light)').matches);document.documentElement.classList.toggle('day',d);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#ededed':'#121212'}
 matchMedia('(prefers-color-scheme: light)').addEventListener&&matchMedia('(prefers-color-scheme: light)').addEventListener('change',applyTheme);
@@ -340,11 +340,14 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1></div>';
   dropSrc(k);
   rpOpen=false;rpSel='';note='Removed '+pShow(nm)+' from Sum.';persist();draw()}}
 function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></div><div class="msg">'+esc(note)+'</div>';
+ const cq2=edP?'':capStrip(cq).replace(/\*/g,'').trim().toLowerCase();
+ const pHit=p=>{if(!cq2)return true;return capStrip([p.name,p.desc||'',p.instr||''].concat(presetItems(p).map(itName)).join('\n')).replace(/\*/g,'').toLowerCase().indexOf(cq2)>=0};
+ if(!edP&&presets.length)h+='<div class="add" style="margin:2px 0 6px"><input id="cq" placeholder="Search components" autocomplete="off" autocapitalize="off" spellcheck="false" value="'+esc(cq)+'">'+(cq?'<button class="ic" id="cqx" aria-label="Clear search">'+IC.x+'</button>':'')+'</div>';
  if(!edP){h+='<h2>Import</h2>';
   if(imp)h+='<div class="card p" style="margin-bottom:24px"><div>'+esc(imp.stage)+'</div>'+(imp.sub?'<div class="mu" style="margin-top:4px">'+esc(imp.sub)+'</div>':'')+'</div>';
   else h+='<div style="margin:0 0 24px"><button class="btn sec" id="impb" style="margin-top:0">Import from photo or file</button><div class="mu" style="margin:8px 2px 0">Take a photo or choose a photo, PDF or text file. Listo reads it into a draft you check before saving.</div></div>'}
  h+='<input type="file" id="impf" accept="image/*,.heic,.heif,application/pdf,.pdf,text/plain,text/markdown,text/csv,.txt,.md,.csv" style="display:none">';
- const act=presets.filter(p=>!p.arch),arc=presets.filter(p=>p.arch);
+ const act=presets.filter(p=>!p.arch&&pHit(p)),arc=presets.filter(p=>p.arch&&pHit(p));
  const pCard=p=>{const ct=pType(p),f=pFactor(p);
   const names=presetItems(p).map(it=>{const e=pQtyAny(p,it);return (e?'('+fmtN(e.q*f)+(e.u?' '+esc(e.u):'')+') ':'')+esc(capStrip(itName(it)))}).join(' \u00b7 ');
   const meta=[];if(ct==='instructions'||ct==='grocery-instructions')meta.push(TLBL[ct]);
@@ -352,7 +355,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
    if(sv&&dv){if(sv!==dv)meta.push('Servings '+fmtN(sv)+' \u2192 '+fmtN(dv));else if(sv!==1)meta.push('Servings '+fmtN(sv))}
    else if(f!==1)meta.push('Scaling \u00d7'+fmtN(f))}
   else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
-  let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pShow(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+(sortC===0||sortC===10?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
+  let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pShow(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+((sortC===0||sortC===10)&&!cq2?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
   if(meta.length)ch+='<div class="src">'+meta.map(esc).join(' \u00b7 ')+'</div>';
   if(p.desc)ch+='<div class="src big" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(capStrip(p.desc)).replace(/\n/g,'<br>')+'</div>';
   ch+='<div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div>';
@@ -360,10 +363,12 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   ch+='<button class="chip sm" data-pa="'+p.id+'">'+addLbl(p)+'</button><button class="lnk" data-par="'+p.id+'" style="padding:8px 4px 0">Archive</button></li>';return ch};
  [['lists','Lists','list','New list'],['groceries','Groceries','grocery','New grocery'],['recipes','Recipes','recipe','New recipe']].forEach(sc=>{
   const lst=sortView(act.filter(p=>pSection(p)===sc[0]),sortC,p=>pTitle(p.name),pType);
+  if(cq2&&!lst.length)return;
   h+='<h2>'+sc[1]+'</h2>';
   if(lst.length)h+='<ul data-sec="'+sc[0]+'">'+lst.map(pCard).join('')+'</ul>';
   else h+='<div class="mu" style="margin:-4px 2px 14px">None yet.</div>';
   if(!edP)h+='<div style="margin:0 0 24px"><button class="btn sec" data-np="'+sc[2]+'" style="margin-top:0">'+sc[3]+'</button></div>'});
+ if(cq2&&!act.length&&!arc.length)h+='<div class="empty">Nothing matches "'+esc(capStrip(cq).trim())+'".</div>';
  if(arc.length&&!edP)h+='<h2>Archived</h2><ul>'+arc.map(p=>{const names=presetItems(p).map(it=>esc(capStrip(itName(it)))).join(' \u00b7 ');
   return '<li class="card p"><div class="vt"><div class="t"><b>'+esc(pShow(p.name))+'</b></div><div class="vt-r"><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button></div></div><div class="src">'+esc(TLBL[pType(p)])+'</div><div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div><button class="chip sm" data-pur="'+p.id+'">Restore</button></li>'}).join('')+'</ul>';
  if(edP){const et=edP.type||'list',ef=et==='recipe'?(edP.dserv||1)/(edP.serv||1):(edP.mult||1);
@@ -384,6 +389,8 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  v.innerHTML=h;
  const imf=$('#impf');if(imf)imf.onchange=()=>{const f=imf.files&&imf.files[0];imf.value='';if(f)importFile(f)};
  const imb=$('#impb');if(imb)imb.onclick=()=>{const f2=$('#impf');if(f2)f2.click()};
+ const cqi=$('#cq');if(cqi){cqi.oninput=()=>{const pos=cqi.selectionStart||0;cq=cqi.value;draw();const n2=$('#cq');if(n2){n2.focus();try{n2.setSelectionRange(pos,pos)}catch(e){}}};
+  const cqx=$('#cqx');if(cqx)cqx.onclick=()=>{cq='';draw();const n3=$('#cq');if(n3)n3.focus()}}
  v.querySelectorAll('[data-np]').forEach(b=>b.onclick=()=>{edP={id:'',name:'',items:[],type:b.dataset.np,desc:'',instr:'',mult:1,serv:1,dserv:1,servSet:true,qty:{}};piVal='';piQ='';piU='';note='';pcAsk=false;draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()});
  v.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pe);const svr=pServ(p);edP={id:p.id,name:pTitle(p.name),items:presetItems(p).map(itName),type:pType(p),desc:p.desc||'',instr:p.instr||'',mult:pMult(p),serv:svr||1,dserv:pDserv(p)||Math.max(1,Math.round(pMult(p)*(svr||1))),servSet:!!svr,qty:{}};
   presetItems(p).forEach(it=>{const e=pQtyAny(p,it);if(e)edP.qty[itName(it).toLowerCase()]={q:e.q,u:e.u}});
