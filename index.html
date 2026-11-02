@@ -72,7 +72,7 @@ nav button{color:#6a6a6a;display:flex;align-items:center;justify-content:center;
 .st-controls .st-options>.chip[data-st="cat:all"]{grid-column:1/-1}.st-controls .st-options.st-center{display:flex;flex-wrap:wrap;justify-content:center}.st-controls .st-options.st-center>.chip{flex:0 0 calc((100% - 24px)/4)}
 .st-controls .st-options>.chip{display:flex;align-items:center;justify-content:center;text-align:center;min-width:0;max-width:100%;height:auto;min-height:38px;box-sizing:border-box;padding:8px 4px;font-size:12px;line-height:16px;white-space:normal;overflow-wrap:anywhere}
 
-.src{color:var(--mu);font-size:9px;letter-spacing:.08em;text-transform:uppercase;line-height:1.8;margin-top:1px}.src.hd{font-size:12px}
+.src{color:var(--mu);font-size:9px;letter-spacing:.08em;text-transform:uppercase;line-height:1.8;margin-top:1px}.src.big{font-size:12px}
 /* Listo */
 #intro .mark{color:#f2f2f2;width:min(14.5vw,56px)}#intro .refl{transform:scaleY(-1);margin-top:2px;opacity:.14;-webkit-mask-image:linear-gradient(180deg,#000 0,transparent 70%);mask-image:linear-gradient(180deg,#000 0,transparent 70%)}
 .hlogo{color:#f2f2f2;width:31px}
@@ -335,9 +335,9 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
   else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
   let ch='<li class="card p" data-iid="'+p.id+'"><div class="vt"><div class="t"><b>'+esc(pTitle(p.name))+'</b></div><div class="vt-r"><button class="ic" data-pe="'+p.id+'" aria-label="Edit">'+IC.pen+'</button><button class="ic" data-psh="'+p.id+'" aria-label="Save or share as image">'+IC.share+'</button><button class="ic" data-px="'+p.id+'" aria-label="Delete">'+IC.x+'</button>'+(sortC===0||sortC===10?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</div></div>';
   if(meta.length)ch+='<div class="src">'+meta.map(esc).join(' \u00b7 ')+'</div>';
-  if(p.desc)ch+='<div class="src hd" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(p.desc).replace(/\n/g,'<br>')+'</div>';
+  if(p.desc)ch+='<div class="src big" style="margin-top:8px">Description</div><div class="mu" style="margin:2px 0 0">'+esc(p.desc).replace(/\n/g,'<br>')+'</div>';
   ch+='<div class="mu" style="margin:6px 0 10px">'+(names||'No items')+'</div>';
-  if(ct!=='list'&&ct!=='grocery'&&p.instr)ch+='<div class="src hd">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(p.instr).replace(/\n/g,'<br>')+'</div>';
+  if(ct!=='list'&&ct!=='grocery'&&p.instr)ch+='<div class="src big">Instructions</div><div class="mu" style="margin:2px 0 10px">'+esc(p.instr).replace(/\n/g,'<br>')+'</div>';
   ch+='<button class="chip sm" data-pa="'+p.id+'">'+addLbl(p)+'</button><button class="lnk" data-par="'+p.id+'" style="padding:8px 4px 0">Archive</button></li>';return ch};
  [['lists','Lists','list','New list'],['groceries','Groceries','grocery','New grocery'],['recipes','Recipes','recipe','New recipe']].forEach(sc=>{
   const lst=sortView(act.filter(p=>pSection(p)===sc[0]),sortC,p=>pTitle(p.name),pType);
