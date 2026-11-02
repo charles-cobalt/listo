@@ -205,7 +205,7 @@ async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&
     if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,user.uid));
     if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}}}
   else{jvStamp(!jvPrimed);const L=jvLocalState(),s=await getDoc(ref);
-   if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin();draw()}sharePushing=false;return}
+   if(!s.exists()){if(jvSeen){note='That shared list ended.';shareNote='';unlinkJoin();draw()}sharePushing=false;return}
    const R=decodeShare(s.data()),M=merge(L,R);
    if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,s.data().owner||''));
    if(sigOf(M)!==sigOf(L)){shareState(M);if(page==='sum')draw()}}
@@ -228,7 +228,7 @@ function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
-  if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
+  if(!s.exists()){if(jvSeen){note='That shared list ended.';shareNote='';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
   jvSeen=true;shareNote='';
   if(s.metadata.hasPendingWrites)return;
   const R=decodeShare(s.data());jvStamp(!jvPrimed);jvPrimed=true;
