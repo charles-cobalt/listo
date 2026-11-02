@@ -167,7 +167,7 @@ function persist(){rev++;saveData();if(user){if(SY.synced)stamp();schedPush()}if
 const SHK='listo.share.code.v1',SHSY='listo.share.sy.v1',JVK='listo.join.code.v1',JVC='listo.join.cache.v1';
 let shCode=localStorage.getItem(SHK)||'',jvCode=localStorage.getItem(JVK)||'';
 let shareBase={},shareMt={},shareDel={},shareOrdH='',shareOrdAt=0,jvU={},jvOrd=[],jvBase={},jvMt={},jvDel={},jvOrdH='',jvOrdAt=0;
-let shUnsub=null,sharePrimed=false,jvPrimed=false,sharePushT=0,sharePushing=false,shareAgain=false;
+let shUnsub=null,sharePrimed=false,jvPrimed=false,sharePushT=0,sharePushing=false,shareAgain=false,shareSeen=false,jvSeen=false;
 const _ssy=jl(localStorage.getItem(SHSY));if(_ssy){shareBase=_ssy.base||{};shareMt=_ssy.mt||{};shareDel=_ssy.del||{};shareOrdH=_ssy.ordH||'';shareOrdAt=_ssy.ordAt||0;sharePrimed=!!_ssy.p}
 function shareSySave(){try{localStorage.setItem(SHSY,JSON.stringify({base:shareBase,mt:shareMt,del:shareDel,ordH:shareOrdH,ordAt:shareOrdAt,p:sharePrimed?1:0}))}catch(e){}}
 function randCode(n){const a='abcdefghjkmnpqrstuvwxyz23456789',b=crypto.getRandomValues(new Uint8Array(n));let s='';for(let i=0;i<n;i++)s+=a[b[i]%a.length];return s}
@@ -205,7 +205,7 @@ async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&
     if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,user.uid));
     if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}}}
   else{jvStamp(!jvPrimed);const L=jvLocalState(),s=await getDoc(ref);
-   if(!s.exists()){shareNote='That shared list ended.';unlinkJoin();draw();sharePushing=false;return}
+   if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin();draw()}sharePushing=false;return}
    const R=decodeShare(s.data()),M=merge(L,R);
    if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,s.data().owner||''));
    if(sigOf(M)!==sigOf(L)){shareState(M);if(page==='sum')draw()}}
@@ -215,19 +215,21 @@ async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&
  sharePushing=false;if(shareAgain){shareAgain=false;schedSharePush(1500)}}
 function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
  if(shUnsub)shUnsub();const ref=doc(db,'shares',shCode);
+ shareSeen=true;
  shUnsub=onSnapshot(ref,s=>{if(!shCode)return;
-  if(!s.exists()){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw();return}
+  if(!s.exists()){if(shareSeen){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw()}return}
   if(s.metadata.hasPendingWrites)return;
   const R=decodeShare(s.data());shareStamp(!sharePrimed);sharePrimed=true;
   const L=shareLocalState(),M=merge(L,R);
   if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}
   if(sigOf(M)!==sigOf(R))schedSharePush(50)},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
- const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}
+ const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}jvSeen=!!c;
  jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
-  if(!s.exists()){shareNote='That shared list ended.';unlinkJoin();if(page==='sum')draw();return}
+  if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
+  jvSeen=true;shareNote='';
   if(s.metadata.hasPendingWrites)return;
   const R=decodeShare(s.data());jvStamp(!jvPrimed);jvPrimed=true;
   const L=jvLocalState(),M=merge(L,R);
@@ -237,19 +239,21 @@ function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
 async function createShare(){if(shCode)return;const code=randCode(16),ref=doc(db,'shares',code);
  try{const s=await getDoc(ref);if(s.exists()){shareNote='Try that again.';draw();return}}catch(e){}
  shCode=code;try{localStorage.setItem(SHK,code)}catch(e){}
- shareBase={};shareMt={};shareDel={};shareOrdH='';shareOrdAt=0;sharePrimed=false;
- startShare();schedSharePush(0)}
+ shareBase={};shareMt={};shareDel={};shareOrdH='';shareOrdAt=0;sharePrimed=false;shareSeen=false;
+ try{shareStamp(true);await setDoc(ref,encShare(shareLocalState(),user.uid));sharePrimed=true;shareSySave()}
+ catch(e){shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();draw();return}
+ startShare()}
 async function endShare(){const code=shCode;if(!code)return false;
  try{await deleteDoc(doc(db,'shares',code));unlinkShare();return true}
  catch(e){shareNote='Could not end the share'+(user?'':'. Sign in first.')+'.';draw();return false}}
 function unlinkShare(){shCode='';try{localStorage.removeItem(SHK)}catch(e){}try{localStorage.removeItem(SHSY)}catch(e){}
- shareBase={};shareMt={};shareDel={};shareOrdH='';shareOrdAt=0;sharePrimed=false;
+ shareBase={};shareMt={};shareDel={};shareOrdH='';shareOrdAt=0;sharePrimed=false;shareSeen=false;
  if(shUnsub){shUnsub();shUnsub=null}}
 function joinShare(code){code=String(code||'').toLowerCase().replace(/[^a-z0-9]/g,'');if(!code)return;
  unlinkJoin();jvCode=code;try{localStorage.setItem(JVK,code)}catch(e){}
  try{localStorage.removeItem(JVC)}catch(e){}
  startJoin()}
-function unlinkJoin(){jvCode='';jvU={};jvOrd=[];jvBase={};jvMt={};jvDel={};jvOrdH='';jvOrdAt=0;jvPrimed=false;
+function unlinkJoin(){jvCode='';jvU={};jvOrd=[];jvBase={};jvMt={};jvDel={};jvOrdH='';jvOrdAt=0;jvPrimed=false;jvSeen=false;
  try{localStorage.removeItem(JVK)}catch(e){}try{localStorage.removeItem(JVC)}catch(e){}
  if(shUnsub){shUnsub();shUnsub=null}}
 function shareUrl(code){return location.origin+location.pathname+'#share='+code}
