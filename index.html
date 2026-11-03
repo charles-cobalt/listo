@@ -177,8 +177,8 @@ const decodeShare=d=>({u:d.u||{},mt:d.mt||{},del:d.del||{},ord:d.ord||[],ordAt:d
  pruned once the item's own version is newer (owner absorbed them) or the item is gone. dord is the owner's DISPLAYED order
  (sort applied) so recipients mirror exactly what the owner sees; the owner keeps no recipient sorting controls.*/
 function mergeShare(L,R){const M=merge(L,R),dn={},dmt={};
- new Set([...Object.keys(L.dn||{}),...Object.keys(R.dn||{})]).forEach(k=>{const la=(L.dmt||{})[k]||0,ra=(R.dmt||{})[k]||0,s=ra>=la?R:L;
-  if(s.dn&&s.dn[k]!==undefined){dn[k]=s.dn[k];dmt[k]=Math.max(la,ra)}});
+ new Set([...Object.keys(L.dn||{}),...Object.keys(R.dn||{})]).forEach(k=>{const lv=(L.dmt||{})[k],rv=(R.dmt||{})[k],la=chkTsOk(lv)?lv:0,ra=chkTsOk(rv)?rv:0,s=ra>=la?R:L;
+  if(s.dn&&s.dn[k]!==undefined&&(la||ra)){dn[k]=s.dn[k];dmt[k]=Math.max(la,ra)}});
  Object.keys(dn).forEach(k=>{if(!chkTsOk(dmt[k])||!M.u['s:'+k]||(M.mt['s:'+k]||0)>=(dmt[k]||0)){delete dn[k];delete dmt[k]}});
  M.dn=dn;M.dmt=dmt;M.dord=(L.dordAt||0)>(R.dordAt||0)?(L.dord||[]):(R.dord||[]);M.dordAt=Math.max(L.dordAt||0,R.dordAt||0);
  return M}
