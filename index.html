@@ -228,7 +228,7 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
   if(sigOf(M)!==sigOf(R))schedSharePush(50)},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}jvSeen=!!c;
- if(jvCode&&jvCode===shCode){recoverSelfJoin().then(()=>{startShare();if(page==='sum')draw()});return}
+ if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(()=>{}).then(()=>{startShare();if(page==='sum')draw()});return}
  jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
@@ -267,7 +267,7 @@ function unlinkJoin(){jvCode='';jvU={};jvOrd=[];jvBase={};jvMt={};jvDel={};jvOrd
  restored, stamped with their own creation time so the sync merge arbitrates anything the device missed; the versioned
  owner/shared copy wins every field conflict (no check-merging).*/
 async function recoverSelfJoin(){try{localStorage.setItem('listo.recovery.'+Date.now(),JSON.stringify({jv:jl(localStorage.getItem(JVC)),sy:jl(localStorage.getItem(SHSY))}))}catch(e){}
- let docDel={};try{const s=await getDoc(doc(db,'shares',shCode));if(s.exists()&&!s.data().dead)docDel=s.data().del||{}}catch(e){}
+ let docDel={};try{const s=await Promise.race([getDoc(doc(db,'shares',shCode)),new Promise(r=>setTimeout(()=>r(null),1500))]);if(s&&s.exists()&&!s.data().dead)docDel=s.data().del||{}}catch(e){}
  const del=Object.assign({},SY.del,shareDel),ids=jvOrd.slice();Object.keys(jvU).forEach(k=>{const id=k.slice(2);if(ids.indexOf(id)<0)ids.push(id)}),kept=[];
  ids.forEach(id=>{const it=jvU['s:'+id];if(!it||!it.id)return;
   if(sum.some(x=>x.id===id))return;
