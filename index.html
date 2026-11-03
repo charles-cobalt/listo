@@ -206,8 +206,8 @@ async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&
     if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,user.uid));
     if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}}}
   else{jvStamp(!jvPrimed);const L=jvLocalState(),s=await getDoc(ref);
-   if(!s.exists()){if(jvSeen){note='That shared list ended.';shareNote='';unlinkJoin();draw()}sharePushing=false;return}
-   if(s.data().dead){note='That shared list ended.';shareNote='';unlinkJoin();draw();sharePushing=false;return}
+   if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin();draw()}sharePushing=false;return}
+   if(s.data().dead){shareNote='That shared list ended.';unlinkJoin();draw();sharePushing=false;return}
    const R=decodeShare(s.data()),M=merge(L,R);
    if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,s.data().owner||''));
    if(sigOf(M)!==sigOf(L)){shareState(M);if(page==='sum')draw()}}
@@ -448,7 +448,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1>'+'</div>';
    if(!user){shMsg='Sign in on Settings first, then tap Share live again.';draw();return}
    shMsg='Creating the shared list\u2026';draw();await createShare();shMsg='';draw()}
   else if(a==='link'){shareLink()}
-  else if(a==='end'){shareNote='Ending the share\u2026';draw();const okE=await endShare();shareNote='';note=okE?'Share ended. Your list is private again.':'';draw()}
+  else if(a==='end'){shareNote='Ending the share\u2026';draw();const okE=await endShare();shareNote='';shareNote=okE?'Share ended. Your list is private again.':'';draw()}
   else if(a==='leave'){unlinkJoin();shareNote='';note='Left the shared list.';draw()}});
  const ca=$('#clra');if(ca)ca.onclick=()=>{clraOpen=true;clraTxt='';draw()};
  const ct=$('#clrat');if(ct)ct.oninput=()=>{clraTxt=ct.value;const ok=clraTxt.trim().toUpperCase()==='CLEAR',b=$('#clrago');if(b){b.classList.toggle('sec',!ok);b.style.opacity=ok?'':'.4'}};
