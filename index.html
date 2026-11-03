@@ -612,7 +612,7 @@ async function sharePreset(p){try{const ct=pType(p),f=pFactor(p);
  else if(f!==1)meta.push('Multiplier '+fmtN(f)+'\u00d7');
  const b=await shareCanvas({title:pShow(p.name),meta,desc:p.desc?capStrip(p.desc):'',items,instr:(ct!=='list'&&ct!=='grocery'&&p.instr)?capStrip(p.instr):''});
  if(!b)throw new Error('blob');
- await shareImgFile(b,'listo-'+(pTitle(p.name).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'list')+'.png')
+ const okp=await shareImgFile(b,'listo-'+(pTitle(p.name).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'list')+'.png');if(!okp&&shImgU){const a=document.createElement('a');a.href=shImgU;a.download='listo-preset.png';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(shImgU);shImgU=''},500)}
 }catch(e){note='Could not create the image. Try again.';draw()}}
 async function shareSumImg(){try{const items=sum.map(x=>{const a=sumAmt(x);return {n:capStrip(x.name)+(x.done?' \u2713':''),t:a?'('+a+')':''}});
  const b=await shareCanvas({title:'Sum',meta:[sum.length+(sum.length===1?' item':' items')],desc:'',items,instr:''});
