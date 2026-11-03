@@ -427,7 +427,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1>'+'</div>';
  else{const svw=sortView(viewItems,sortS,x=>x.name);h+='<ul id="sumlist">'+svw.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'" data-iid="'+x.id+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(capStrip(x.name))+(sub?'<div class="src">'+capStrip(sub)+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button>'+(sortS===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</li>'}).join('')+'</ul>';
   if(!jvCode){if(shOpen)h+='<div class="card p" style="margin-top:14px"><div>Share Sum</div><div class="mu">Send a picture of the list, or share it live so you can both check items off together.</div><div class="row" style="margin-top:10px"><button class="btn sec" data-sh="img" style="flex:1;margin-top:0">Share as image</button><button class="btn sec" data-sh="live" style="flex:1;margin-top:0">'+(shCode?'Send the live link':'Share live')+'</button></div><div class="row" style="margin-top:8px"><button class="btn sec" data-sh="x" style="flex:1;margin-top:0">Cancel</button></div></div>';
    else h+='<div class="row" style="margin-top:14px"><button class="btn sec" data-sh="open" style="flex:1;margin-top:0">Share</button></div>';
-   if(shMsg)h+='<div class="msg" style="margin:6px 0 0">'+esc(shMsg)+'</div>';if(shImgU)h+='<div class="card p" style="margin-top:8px"><img src="'+shImgU+'" style="width:100%;border-radius:10px;display:block" alt="Sum image"><div class="row" style="margin-top:8px"><button class="btn sec" data-sh="xi" style="flex:1;margin-top:0">Close image</button></div></div>'}
+   const sm=shMsg||(!shCode?shareNote:'');if(sm)h+='<div class="msg" style="margin:6px 0 0">'+esc(sm)+'</div>';if(shImgU)h+='<div class="card p" style="margin-top:8px"><img src="'+shImgU+'" style="width:100%;border-radius:10px;display:block" alt="Sum image"><div class="row" style="margin-top:8px"><button class="btn sec" data-sh="xi" style="flex:1;margin-top:0">Close image</button></div></div>'}
   const cn=jvCode?[]:contribNames();if(rpSel&&!cn.some(c=>c.key===rpSel))rpSel='';if(!cn.length){rpOpen=false;rpSel=''}
   if(rpOpen)h+=rpHtml(cn);
   else if(!clraOpen)h+=(cn.length?'<div class="row" style="margin-top:14px"><button class="btn sec" id="rpo" style="flex:1;margin-top:0">Remove a preset</button></div>':'')+'<div class="row" style="margin-top:'+(cn.length?'8':'14')+'px">'+(viewItems.some(x=>x.done)?'<button class="btn sec" id="clrd" style="margin-top:0">Clear checked</button>':'')+(jvCode?'':'<button class="btn sec" id="clra" style="margin-top:0">Clear all</button>')+'</div>';
@@ -445,7 +445,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1>'+'</div>';
   else if(a==='x'){shOpen=false;draw()}
   else if(a==='xi'){if(shImgU)URL.revokeObjectURL(shImgU);shImgU='';shMsg='';draw()}
   else if(a==='img'){shOpen=false;shMsg='Preparing the image\u2026';draw();shareSumImg()}
-  else if(a==='live'){shOpen=false;shMsg='';
+  else if(a==='live'){shOpen=false;shMsg='';shareNote='';
    if(shCode){shareLink();return}
    if(!user){shMsg='Sign in on Settings first, then tap Share live again.';draw();return}
    shMsg='Creating the shared list\u2026';draw();await createShare();shMsg='';draw()}
