@@ -179,18 +179,22 @@ const decodeShare=d=>({u:d.u||{},mt:d.mt||{},del:d.del||{},ord:d.ord||[],ordAt:d
 function mergeShare(L,R){const M=merge(L,R),dn={},dmt={};
  new Set([...Object.keys(L.dn||{}),...Object.keys(R.dn||{})]).forEach(k=>{const la=(L.dmt||{})[k]||0,ra=(R.dmt||{})[k]||0,s=ra>=la?R:L;
   if(s.dn&&s.dn[k]!==undefined){dn[k]=s.dn[k];dmt[k]=Math.max(la,ra)}});
- Object.keys(dn).forEach(k=>{if(!M.u['s:'+k]||(M.mt['s:'+k]||0)>=(dmt[k]||0)){delete dn[k];delete dmt[k]}});
+ Object.keys(dn).forEach(k=>{if(!chkTsOk(dmt[k])||!M.u['s:'+k]||(M.mt['s:'+k]||0)>=(dmt[k]||0)){delete dn[k];delete dmt[k]}});
  M.dn=dn;M.dmt=dmt;M.dord=(L.dordAt||0)>(R.dordAt||0)?(L.dord||[]):(R.dord||[]);M.dordAt=Math.max(L.dordAt||0,R.dordAt||0);
  return M}
 const sigShare=M=>hsh(canon([M.u,M.mt,M.del,M.ord,M.ordAt,M.dn||{},M.dmt||{},M.dord||[],M.dordAt||0]));
+/*Check-override timestamps must be real, positive, near-present numbers: rules can't range-check them, so every client
+ ignores malformed or far-future dmt and the owner's next push scrubs them from the doc - a crafted override can never
+ crash sync, stick forever, or override the owner's own checks.*/
+const chkTsOk=ts=>typeof ts==='number'&&isFinite(ts)&&ts>0&&ts<Date.now()+900000;
 /*Owner absorbs recipient check toggles into the authoritative items; the toggle override is then pruned by shareStamp.*/
 function absorbShareChecks(R){let ch=false;Object.keys(R.dn||{}).forEach(id=>{const it=sum.find(x=>x.id===id);if(!it)return;
- if((R.dmt[id]||0)>(shareMt['s:'+id]||0)&&it.done!==!!R.dn[id]){it.done=!!R.dn[id];ch=true}});if(ch)saveData();return ch}
+ if(chkTsOk(R.dmt[id])&&R.dmt[id]>(shareMt['s:'+id]||0)&&it.done!==!!R.dn[id]){it.done=!!R.dn[id];ch=true}});if(ch)saveData();return ch}
 function shareStamp(first){const u={},now=Date.now();sum.forEach(x=>{u['s:'+x.id]=x});
  Object.keys(u).forEach(k=>{const h=hsh(JSON.stringify(u[k]));if(shareBase[k]!==h){shareBase[k]=h;shareMt[k]=first?0:now;delete shareDel[k]}});
  Object.keys(shareBase).forEach(k=>{if(!(k in u)){delete shareBase[k];delete shareMt[k];shareDel[k]=now}});
  const oh=hsh(JSON.stringify(sum.map(x=>x.id)));if(oh!==shareOrdH){shareOrdH=oh;shareOrdAt=first?0:now}
- Object.keys(shareDn).forEach(id=>{if(!u['s:'+id]||(shareMt['s:'+id]||0)>=(shareDmt[id]||0)){delete shareDn[id];delete shareDmt[id]}});
+ Object.keys(shareDn).forEach(id=>{if(!chkTsOk(shareDmt[id])||!u['s:'+id]||(shareMt['s:'+id]||0)>=(shareDmt[id]||0)){delete shareDn[id];delete shareDmt[id]}});
  const dord=sortView(sum.slice(),sortS,x=>x.name).map(x=>x.id),dh=hsh(JSON.stringify(dord));if(dh!==shareDordH){shareDordH=dh;shareDordAt=first?0:now}
  shareSySave()}
 function shareLocalState(){const u={};sum.forEach(x=>{u['s:'+x.id]=x});return {u,mt:Object.assign({},shareMt),del:Object.assign({},shareDel),ord:sum.map(x=>x.id),ordAt:shareOrdAt,dn:Object.assign({},shareDn),dmt:Object.assign({},shareDmt),dord:sortView(sum.slice(),sortS,x=>x.name).map(x=>x.id),dordAt:shareDordAt,th:'',thAt:0}}
@@ -199,14 +203,14 @@ function shareLocalState(){const u={};sum.forEach(x=>{u['s:'+x.id]=x});return {u
  or text edit is possible from a recipient, whatever the client does. The owner absorbs toggles into the real items.
  Recipients mirror the owner's DISPLAYED order (dord, sort applied) without getting any sorting controls.*/
 function jvSave(){try{localStorage.setItem(JVC,JSON.stringify({u:jvU,ord:jvOrd,mt:jvMt,ddn:jvDocDn,ddmt:jvDocDmt,dn:jvDn,dmt:jvDmt}))}catch(e){}}
-function jvEffDone(id){const p=jvDn[id];if(p!==undefined&&(jvDmt[id]||0)>Math.max(jvDocDmt[id]||0,jvMt['s:'+id]||0))return p;
- const d=jvDocDn[id];if(d!==undefined&&(jvDocDmt[id]||0)>(jvMt['s:'+id]||0))return d;
+function jvEffDone(id){const p=jvDn[id];if(p!==undefined&&(jvDmt[id]||0)>Math.max(chkTsOk(jvDocDmt[id])?jvDocDmt[id]:0,jvMt['s:'+id]||0))return p;
+ const d=jvDocDn[id];if(d!==undefined&&chkTsOk(jvDocDmt[id])&&jvDocDmt[id]>(jvMt['s:'+id]||0))return d;
  return jvU['s:'+id]?!!jvU['s:'+id].done:false}
 function jvAdopt(M){jvU=M.u;jvMt=M.mt||{};jvDocDn=M.dn||{};jvDocDmt=M.dmt||{};
  jvOrd=((M.dord&&M.dord.length)?M.dord:(M.ord||[])).filter(id=>M.u['s:'+id]);
  Object.keys(M.u).forEach(k=>{if(k.indexOf('s:')===0&&jvOrd.indexOf(k.slice(2))<0)jvOrd.push(k.slice(2))});
  Object.keys(jvDn).forEach(id=>{if(!M.u['s:'+id]){delete jvDn[id];delete jvDmt[id];return}
-  const docEff=(jvDocDn[id]!==undefined&&(jvDocDmt[id]||0)>(jvMt['s:'+id]||0))?jvDocDn[id]:!!M.u['s:'+id].done;
+  const docEff=(jvDocDn[id]!==undefined&&chkTsOk(jvDocDmt[id])&&jvDocDmt[id]>(jvMt['s:'+id]||0))?jvDocDn[id]:!!M.u['s:'+id].done;
   if(docEff===jvDn[id]&&Math.max(jvDocDmt[id]||0,jvMt['s:'+id]||0)>=(jvDmt[id]||0)){delete jvDn[id];delete jvDmt[id]}});
  jvSave()}
 function applyShareToSum(M){const ids=(M.ord||[]).filter(id=>M.u['s:'+id]);
