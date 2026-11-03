@@ -228,7 +228,7 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
   if(sigOf(M)!==sigOf(R))schedSharePush(50)},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}jvSeen=!!c;
- if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(()=>{}).then(()=>{startShare();if(page==='sum')draw()});return}
+ if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(e=>{window.__rec='reject:'+(e&&(e.stack||e.message)||e)}).then(()=>{startShare();if(page==='sum')draw()});return}
  jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
