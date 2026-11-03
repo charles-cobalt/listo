@@ -228,6 +228,7 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
   if(sigOf(M)!==sigOf(R))schedSharePush(50)},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}jvSeen=!!c;
+ if(jvCode&&jvCode===shCode){recoverSelfJoin();startShare();return}
  jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
@@ -254,12 +255,24 @@ function unlinkShare(){shCode='';try{localStorage.removeItem(SHK)}catch(e){}try{
  shareBase={};shareMt={};shareDel={};shareOrdH='';shareOrdAt=0;sharePrimed=false;shareSeen=false;
  if(shUnsub){shUnsub();shUnsub=null}}
 function joinShare(code){code=String(code||'').toLowerCase().replace(/[^a-z0-9]/g,'');if(!code)return;
+ if(code===shCode)return;
  unlinkJoin();jvCode=code;try{localStorage.setItem(JVK,code)}catch(e){}
  try{localStorage.removeItem(JVC)}catch(e){}
  startJoin()}
 function unlinkJoin(){jvCode='';jvU={};jvOrd=[];jvBase={};jvMt={};jvDel={};jvOrdH='';jvOrdAt=0;jvPrimed=false;jvSeen=false;
  try{localStorage.removeItem(JVK)}catch(e){}try{localStorage.removeItem(JVC)}catch(e){}
  if(shUnsub){shUnsub();shUnsub=null}}
+/*SELF-JOIN RECOVERY: a device that joined its OWN share (own link tapped) heals here. Non-destructive: both copies
+ snapshotted first; only items missing from the owner list AND never tombstoned in the persisted mutation history are
+ restored; the versioned owner/shared copy wins every field conflict (no check-merging).*/
+function recoverSelfJoin(){try{localStorage.setItem('listo.recovery.'+Date.now(),JSON.stringify({jv:jl(localStorage.getItem(JVC)),sy:jl(localStorage.getItem(SHSY))}))}catch(e){}
+ const del=Object.assign({},SY.del,shareDel),ids=jvOrd.slice();Object.keys(jvU).forEach(k=>{const id=k.slice(2);if(ids.indexOf(id)<0)ids.push(id)});let restored=0;
+ ids.forEach(id=>{const it=jvU['s:'+id];if(!it||!it.id)return;
+  if(sum.some(x=>x.id===id))return;
+  if(del['s:'+id]!==undefined)return;
+  sum.push(it);restored++});
+ unlinkJoin();
+ if(restored){persist();note=restored===1?'Restored 1 item added while viewing the shared list.':'Restored '+restored+' items added while viewing the shared list.'}}
 let shMsg='';
 function shareUrl(code){return location.origin+location.pathname+'#share='+code}
 async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){
@@ -343,6 +356,12 @@ function addToSum(name,src,qc){name=capTitle(normName(name));if(!name)return;src
   note=was?'Back on the list.':(added?'':'Already in Sum.')}
  else{const it={id:uid(),name,done:false,at:Date.now()};if(src)it.src=[src];if(src&&qc)it.qtys=[{s:src,q:qc.q,u:String(qc.u||'')}];sum.push(it);note=''}
  persist()}
+function addToJv(name,src,qc){name=capTitle(normName(name));if(!name)return;src=capTitle(normName(src));const ex=jvOrd.map(id=>jvU['s:'+id]).find(x=>x&&x.name.toLowerCase()===name.toLowerCase());
+ if(ex){if(src&&!(ex.src||[]).some(s=>String(s).toLowerCase()===src.toLowerCase()))ex.src=(ex.src||[]).concat([src]);
+  if(src&&qc){ex.qtys=(ex.qtys||[]).filter(c=>String(c.s).toLowerCase()!==src.toLowerCase());ex.qtys.push({s:src,q:qc.q,u:String(qc.u||'')})}
+  if(ex.done)ex.done=false}
+ else{const it={id:uid(),name,done:false,at:Date.now()};if(src)it.src=[src];if(src&&qc)it.qtys=[{s:src,q:qc.q,u:String(qc.u||'')}];jvU['s:'+it.id]=it;jvOrd.push(it.id)}
+ jvPersist()}
 /*REMOVE PRESET FROM SUM*/
 function contribNames(){const m={},ord=[];sum.forEach(x=>{(x.src||[]).forEach(s=>{const k=String(s).toLowerCase();if(!m[k]){m[k]={key:k,name:String(s),total:0,only:0,shared:0};ord.push(k)}m[k].total++;if(x.src.length===1)m[k].only++;else m[k].shared++})});return ord.map(k=>m[k])}
 function dropSrc(k){let t=0;sum=sum.filter(x=>{const hasS=(x.src||[]).some(s2=>String(s2).toLowerCase()===k),hasC=(x.qtys||[]).some(c2=>String(c2.s).toLowerCase()===k);
@@ -520,7 +539,8 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>Components</h1></
  v.querySelectorAll('[data-par]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.par);if(p){p.arch=Date.now();note='Archived '+pShow(p.name)+'. Find it under Archived.';persist()}draw()});
  v.querySelectorAll('[data-pur]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pur);if(p){delete p.arch;note='Restored '+pShow(p.name)+'.';persist()}draw()});
  v.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.pa);if(p){const f=pFactor(p),ct=pType(p);
-  presetItems(p).forEach(it=>{const e=pQtyAny(p,it);addToSum(itName(it),p.name,e?{q:e.q*f,u:e.u}:null)});
+  const addFn=jvCode?addToJv:addToSum;
+  presetItems(p).forEach(it=>{const e=pQtyAny(p,it);addFn(itName(it),p.name,e?{q:e.q*f,u:e.u}:null)});
   const sva=pServ(p),dva=pDserv(p);
   note=f===1?'Added to Sum.':(ct==='recipe'&&sva&&dva?'Added to Sum \u00b7 serves '+fmtN(dva)+'.':'Added to Sum at '+fmtN(f)+'\u00d7.')}draw()});
  v.querySelectorAll('[data-psh]').forEach(b=>b.onclick=()=>{const p=presets.find(y=>y.id===b.dataset.psh);if(p)sharePreset(p)});
