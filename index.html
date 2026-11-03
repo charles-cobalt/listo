@@ -231,7 +231,8 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
   const R=decodeShare(s.data());shareStamp(!sharePrimed);sharePrimed=true;
   const L=shareLocalState(),M=merge(L,R);
   if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}
-  if(sigOf(M)!==sigOf(R))schedSharePush(50)},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
+  if(sigOf(M)!==sigOf(R))schedSharePush(50);
+  recoverPending()},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}jvSeen=!!c;
  if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(()=>{try{unlinkJoin()}catch(e){}}).then(()=>{startShare();if(page==='sum')draw()});return}
@@ -282,7 +283,7 @@ function restoreFromJoinCache(su,so,docDel){const del=Object.assign({},SY.del,sh
   sum.push(it);kept.push({id:id,at:+it.at||Date.now(),h:hsh(JSON.stringify(it))})});
  if(kept.length){persist();kept.forEach(k=>{SY.base['s:'+k.id]=k.h;SY.mt['s:'+k.id]=k.at;shareBase['s:'+k.id]=k.h;shareMt['s:'+k.id]=k.at});saveSY();shareSySave();
   shareNote=kept.length===1?'Restored 1 item added while viewing the shared list.':'Restored '+kept.length+' items added while viewing the shared list.'}}
-async function fetchShareDel(){try{const s=await Promise.race([getDoc(doc(db,'shares',shCode)),new Promise(r=>setTimeout(()=>r(null),1500))]);if(s&&s.exists())return s.data().dead?{}:(s.data().del||{})}catch(e){}return null}
+async function fetchShareDel(){try{const s=await Promise.race([getDoc(doc(db,'shares',shCode)),new Promise(r=>setTimeout(()=>r(null),10000))]);if(s&&s.exists())return s.data().dead?{}:(s.data().del||{})}catch(e){}return null}
 async function recoverSelfJoin(){const snapKey='listo.recovery.'+Date.now();
  try{localStorage.setItem(snapKey,JSON.stringify({jv:jl(localStorage.getItem(JVC)),sy:jl(localStorage.getItem(SHSY))}))}catch(e){}
  const su=jvU,so=jvOrd,docDel=await fetchShareDel();
