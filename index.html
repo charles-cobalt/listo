@@ -166,35 +166,49 @@ function persist(){rev++;saveData();if(user){if(SY.synced)stamp();schedPush()}if
 /*LIVE SHARE - owner shares Sum by link; anyone with the link sees and checks off the same list live.*/
 const SHK='listo.share.code.v1',SHSY='listo.share.sy.v1',JVK='listo.join.code.v1',JVC='listo.join.cache.v1';
 let shCode=localStorage.getItem(SHK)||'',jvCode=localStorage.getItem(JVK)||'';
-let shareBase={},shareMt={},shareDel={},shareOrdH='',shareOrdAt=0,jvU={},jvOrd=[],jvBase={},jvMt={},jvDel={},jvOrdH='',jvOrdAt=0;
+let shareBase={},shareMt={},shareDel={},shareOrdH='',shareOrdAt=0,shareDn={},shareDmt={},shareDordH='',shareDordAt=0,jvU={},jvOrd=[],jvMt={},jvDocDn={},jvDocDmt={},jvDn={},jvDmt={};
 let shUnsub=null,sharePrimed=false,jvPrimed=false,sharePushT=0,sharePushing=false,shareAgain=false,shareSeen=false,jvSeen=false;
-const _ssy=jl(localStorage.getItem(SHSY));if(_ssy){shareBase=_ssy.base||{};shareMt=_ssy.mt||{};shareDel=_ssy.del||{};shareOrdH=_ssy.ordH||'';shareOrdAt=_ssy.ordAt||0;sharePrimed=!!_ssy.p}
-function shareSySave(){try{localStorage.setItem(SHSY,JSON.stringify({base:shareBase,mt:shareMt,del:shareDel,ordH:shareOrdH,ordAt:shareOrdAt,p:sharePrimed?1:0}))}catch(e){}}
+const _ssy=jl(localStorage.getItem(SHSY));if(_ssy){shareBase=_ssy.base||{};shareMt=_ssy.mt||{};shareDel=_ssy.del||{};shareOrdH=_ssy.ordH||'';shareOrdAt=_ssy.ordAt||0;shareDn=_ssy.dn||{};shareDmt=_ssy.dmt||{};shareDordH=_ssy.dordH||'';shareDordAt=_ssy.dordAt||0;sharePrimed=!!_ssy.p}
+function shareSySave(){try{localStorage.setItem(SHSY,JSON.stringify({base:shareBase,mt:shareMt,del:shareDel,ordH:shareOrdH,ordAt:shareOrdAt,dn:shareDn,dmt:shareDmt,dordH:shareDordH,dordAt:shareDordAt,p:sharePrimed?1:0}))}catch(e){}}
 function randCode(n){const a='abcdefghjkmnpqrstuvwxyz23456789',b=crypto.getRandomValues(new Uint8Array(n));let s='';for(let i=0;i<n;i++)s+=a[b[i]%a.length];return s}
-const encShare=(M,owner)=>({ver:1,owner:owner||'',u:M.u,mt:M.mt,del:M.del,ord:M.ord,ordAt:M.ordAt,updated:Date.now()});
-const decodeShare=d=>({u:d.u||{},mt:d.mt||{},del:d.del||{},ord:d.ord||[],ordAt:d.ordAt||0,th:'',thAt:0});
+const encShare=(M,owner)=>({ver:1,owner:owner||'',u:M.u,mt:M.mt,del:M.del,ord:M.ord,ordAt:M.ordAt,dn:M.dn||{},dmt:M.dmt||{},dord:M.dord||[],dordAt:M.dordAt||0,updated:Date.now()});
+const decodeShare=d=>({u:d.u||{},mt:d.mt||{},del:d.del||{},ord:d.ord||[],ordAt:d.ordAt||0,dn:d.dn||{},dmt:d.dmt||{},dord:d.dord||[],dordAt:d.dordAt||0,th:'',thAt:0});
+/*Share-level merge: account merge handles items/order; check overrides (dn/dmt) merge per key by newer toggle time and are
+ pruned once the item's own version is newer (owner absorbed them) or the item is gone. dord is the owner's DISPLAYED order
+ (sort applied) so recipients mirror exactly what the owner sees; the owner keeps no recipient sorting controls.*/
+function mergeShare(L,R){const M=merge(L,R),dn={},dmt={};
+ new Set([...Object.keys(L.dn||{}),...Object.keys(R.dn||{})]).forEach(k=>{const la=(L.dmt||{})[k]||0,ra=(R.dmt||{})[k]||0,s=ra>=la?R:L;
+  if(s.dn&&s.dn[k]!==undefined){dn[k]=s.dn[k];dmt[k]=Math.max(la,ra)}});
+ Object.keys(dn).forEach(k=>{if(!M.u['s:'+k]||(M.mt['s:'+k]||0)>=(dmt[k]||0)){delete dn[k];delete dmt[k]}});
+ M.dn=dn;M.dmt=dmt;M.dord=(L.dordAt||0)>(R.dordAt||0)?(L.dord||[]):(R.dord||[]);M.dordAt=Math.max(L.dordAt||0,R.dordAt||0);
+ return M}
+const sigShare=M=>hsh(canon([M.u,M.mt,M.del,M.ord,M.ordAt,M.dn||{},M.dmt||{},M.dord||[],M.dordAt||0]));
+/*Owner absorbs recipient check toggles into the authoritative items; the toggle override is then pruned by shareStamp.*/
+function absorbShareChecks(R){let ch=false;Object.keys(R.dn||{}).forEach(id=>{const it=sum.find(x=>x.id===id);if(!it)return;
+ if((R.dmt[id]||0)>(shareMt['s:'+id]||0)&&it.done!==!!R.dn[id]){it.done=!!R.dn[id];ch=true}});if(ch)saveData();return ch}
 function shareStamp(first){const u={},now=Date.now();sum.forEach(x=>{u['s:'+x.id]=x});
  Object.keys(u).forEach(k=>{const h=hsh(JSON.stringify(u[k]));if(shareBase[k]!==h){shareBase[k]=h;shareMt[k]=first?0:now;delete shareDel[k]}});
  Object.keys(shareBase).forEach(k=>{if(!(k in u)){delete shareBase[k];delete shareMt[k];shareDel[k]=now}});
  const oh=hsh(JSON.stringify(sum.map(x=>x.id)));if(oh!==shareOrdH){shareOrdH=oh;shareOrdAt=first?0:now}
+ Object.keys(shareDn).forEach(id=>{if(!u['s:'+id]||(shareMt['s:'+id]||0)>=(shareDmt[id]||0)){delete shareDn[id];delete shareDmt[id]}});
+ const dord=sortView(sum.slice(),sortS,x=>x.name).map(x=>x.id),dh=hsh(JSON.stringify(dord));if(dh!==shareDordH){shareDordH=dh;shareDordAt=first?0:now}
  shareSySave()}
-function shareLocalState(){const u={};sum.forEach(x=>{u['s:'+x.id]=x});return {u,mt:Object.assign({},shareMt),del:Object.assign({},shareDel),ord:sum.map(x=>x.id),ordAt:shareOrdAt,th:'',thAt:0}}
-function jvStamp(first){const now=Date.now();
- Object.keys(jvU).forEach(k=>{const h=hsh(JSON.stringify(jvU[k]));if(jvBase[k]!==h){jvBase[k]=h;jvMt[k]=first?0:now;delete jvDel[k]}});
- Object.keys(jvBase).forEach(k=>{if(!(k in jvU)){delete jvBase[k];delete jvMt[k];jvDel[k]=now}});
- const oh=hsh(JSON.stringify(jvOrd));if(oh!==jvOrdH){jvOrdH=oh;jvOrdAt=first?0:now}}
-function jvLocalState(){return {u:jvU,mt:jvMt,del:jvDel,ord:jvOrd,ordAt:jvOrdAt,th:'',thAt:0}}
-/*Recipients are check-only: their writes can flip done on items the owner has, never add, remove, reorder, or edit.
- Their outgoing and adopted state is built from the authoritative shared doc; only newer local check toggles apply.*/
-function jvCheckOnly(R){const L=jvLocalState(),M={u:{},mt:Object.assign({},R.mt),del:Object.assign({},R.del),ord:(R.ord||[]).slice(),ordAt:R.ordAt,th:'',thAt:0};
- Object.keys(R.u).forEach(k=>{const r=R.u[k],l=L.u[k];
-  if(l&&l.done!==r.done&&(L.mt[k]||0)>(R.mt[k]||0)){M.u[k]=Object.assign({},r,{done:l.done});M.mt[k]=L.mt[k]}else M.u[k]=r});
- return M}
-function jvSave(){try{localStorage.setItem(JVC,JSON.stringify({u:jvU,ord:jvOrd}))}catch(e){}}
-function jvPersist(){jvStamp(false);jvSave();schedSharePush()}
-function shareState(M){jvU=M.u;jvOrd=(M.ord||[]).filter(id=>M.u['s:'+id]);
+function shareLocalState(){const u={};sum.forEach(x=>{u['s:'+x.id]=x});return {u,mt:Object.assign({},shareMt),del:Object.assign({},shareDel),ord:sum.map(x=>x.id),ordAt:shareOrdAt,dn:Object.assign({},shareDn),dmt:Object.assign({},shareDmt),dord:sortView(sum.slice(),sortS,x=>x.name).map(x=>x.id),dordAt:shareDordAt,th:'',thAt:0}}
+/*Recipients are check-only. They never write items: a check toggle is a pending local override (jvDn/jvDmt) pushed to the
+ doc's dn/dmt maps with a merge write, which the security rules restrict to exactly those fields - no add, remove, reorder,
+ or text edit is possible from a recipient, whatever the client does. The owner absorbs toggles into the real items.
+ Recipients mirror the owner's DISPLAYED order (dord, sort applied) without getting any sorting controls.*/
+function jvSave(){try{localStorage.setItem(JVC,JSON.stringify({u:jvU,ord:jvOrd,mt:jvMt,ddn:jvDocDn,ddmt:jvDocDmt,dn:jvDn,dmt:jvDmt}))}catch(e){}}
+function jvEffDone(id){const p=jvDn[id];if(p!==undefined&&(jvDmt[id]||0)>Math.max(jvDocDmt[id]||0,jvMt['s:'+id]||0))return p;
+ const d=jvDocDn[id];if(d!==undefined&&(jvDocDmt[id]||0)>(jvMt['s:'+id]||0))return d;
+ return jvU['s:'+id]?!!jvU['s:'+id].done:false}
+function jvAdopt(M){jvU=M.u;jvMt=M.mt||{};jvDocDn=M.dn||{};jvDocDmt=M.dmt||{};
+ jvOrd=((M.dord&&M.dord.length)?M.dord:(M.ord||[])).filter(id=>M.u['s:'+id]);
  Object.keys(M.u).forEach(k=>{if(k.indexOf('s:')===0&&jvOrd.indexOf(k.slice(2))<0)jvOrd.push(k.slice(2))});
- jvBase={};jvMt=M.mt;jvDel=M.del;jvOrdAt=M.ordAt;Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));jvSave()}
+ Object.keys(jvDn).forEach(id=>{if(!M.u['s:'+id]){delete jvDn[id];delete jvDmt[id];return}
+  const docEff=(jvDocDn[id]!==undefined&&(jvDocDmt[id]||0)>(jvMt['s:'+id]||0))?jvDocDn[id]:!!M.u['s:'+id].done;
+  if(docEff===jvDn[id]&&Math.max(jvDocDmt[id]||0,jvMt['s:'+id]||0)>=(jvDmt[id]||0)){delete jvDn[id];delete jvDmt[id]}});
+ jvSave()}
 function applyShareToSum(M){const ids=(M.ord||[]).filter(id=>M.u['s:'+id]);
  Object.keys(M.u).forEach(k=>{if(k.indexOf('s:')===0&&ids.indexOf(k.slice(2))<0)ids.push(k.slice(2))});
  sum=ids.map(id=>M.u['s:'+id]);
@@ -204,22 +218,25 @@ function schedSharePush(d){if(!shCode&&!jvCode)return;clearTimeout(sharePushT);s
 async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&!user)return;
  if(sharePushing){shareAgain=true;return}sharePushing=true;
  try{const ref=doc(db,'shares',code);
-  if(shCode){shareStamp(!sharePrimed);const L=shareLocalState(),s=await getDoc(ref);
-   if(!s.exists()){await setDoc(ref,encShare(L,user.uid))}
+  if(shCode){shareStamp(!sharePrimed);const s=await getDoc(ref);
+   if(!s.exists()){await setDoc(ref,encShare(shareLocalState(),user.uid))}
    else{const d=s.data();if(d.dead){shareNote='The shared list ended.';unlinkShare();draw();sharePushing=false;return}
    if(d.owner&&d.owner!==user.uid){shareNote='That share belongs to another account. It was unlinked here.';unlinkShare();draw();sharePushing=false;return}
-    const R=decodeShare(d),M=merge(L,R);
-    if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,user.uid));
-    if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}}}
-  else{jvStamp(!jvPrimed);const s=await getDoc(ref);
+    const R=decodeShare(d);absorbShareChecks(R);shareStamp(false);
+    const L=shareLocalState(),M=mergeShare(L,R);
+    if(sigShare(M)!==sigShare(R))await setDoc(ref,encShare(M,user.uid));
+    if(sigShare(M)!==sigShare(L)){applyShareToSum(M);if(page==='sum')draw()}}}
+  else{const s=await getDoc(ref);
    if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin();draw()}sharePushing=false;return}
    if(s.data().dead){shareNote='That shared list ended.';unlinkJoin();draw();sharePushing=false;return}
-   const R=decodeShare(s.data()),M=jvCheckOnly(R);
-   if(sigOf(M)!==sigOf(R))await setDoc(ref,encShare(M,s.data().owner||''));
-   if(sigOf(M)!==sigOf(jvLocalState())){shareState(M);if(page==='sum')draw()}}
+   const R=decodeShare(s.data());jvAdopt(R);
+   const upd={dn:{},dmt:{}};let any=false;
+   Object.keys(jvDn).forEach(id=>{if(!R.u['s:'+id])return;upd.dn[id]=jvDn[id];upd.dmt[id]=jvDmt[id]||Date.now();any=true});
+   if(any){upd.updated=Date.now();await setDoc(ref,upd,{merge:true})}
+   if(page==='sum')draw()}
   if(shCode&&!sharePrimed){sharePrimed=true;shareSySave()}
   shareNote=''
- }catch(e){shareNote=(!navigator.onLine||(e&&e.code==='unavailable'))?'Share: offline. Changes here sync when you are back online.':'Share problem: '+((e&&e.code)||'unknown')+'.'}
+ }catch(e){shareNote=(!navigator.onLine||(e&&e.code==='unavailable'))?'Share: offline. Changes here sync when you are back online.':'Share problem: '+((e&&e.code)||'unknown')+'.';if(jvCode&&Object.keys(jvDn).length)schedSharePush(3000)}
  sharePushing=false;if(shareAgain){shareAgain=false;schedSharePush(1500)}}
 function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
  if(shUnsub)shUnsub();const ref=doc(db,'shares',shCode);
@@ -228,25 +245,22 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
   if(!s.exists()){if(shareSeen){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw()}return}
   if(s.metadata.hasPendingWrites)return;
   if(s.data().dead){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw();return}
-  const R=decodeShare(s.data());shareStamp(!sharePrimed);sharePrimed=true;
-  const L=shareLocalState(),M=merge(L,R);
-  if(sigOf(M)!==sigOf(L)){applyShareToSum(M);if(page==='sum')draw()}
-  if(sigOf(M)!==sigOf(R))schedSharePush(50);
+  const R=decodeShare(s.data());absorbShareChecks(R);shareStamp(!sharePrimed);sharePrimed=true;
+  const L=shareLocalState(),M=mergeShare(L,R);
+  if(sigShare(M)!==sigShare(L)){applyShareToSum(M);if(page==='sum')draw()}
+  if(sigShare(M)!==sigShare(R))schedSharePush(50);
   recoverPending()},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
- const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}jvSeen=!!c;
+ const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[];jvMt=c.mt||{};jvDocDn=c.ddn||{};jvDocDmt=c.ddmt||{};jvDn=c.dn||{};jvDmt=c.dmt||{}}jvSeen=!!c;
  if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(()=>{try{unlinkJoin()}catch(e){}}).then(()=>{startShare();if(page==='sum')draw()});return}
- jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
   if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
   jvSeen=true;shareNote='';
   if(s.metadata.hasPendingWrites)return;
   if(s.data().dead){shareNote='That shared list ended.';unlinkJoin();if(page==='sum')draw();return}
-  const R=decodeShare(s.data());jvStamp(!jvPrimed);jvPrimed=true;
-  const M=jvCheckOnly(R);
-  if(sigOf(M)!==sigOf(jvLocalState()))shareState(M);
-  if(sigOf(M)!==sigOf(R))schedSharePush(50);
+  const R=decodeShare(s.data());jvAdopt(R);
+  if(Object.keys(jvDn).length)schedSharePush(50);
   if(page==='sum')draw()},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 async function createShare(){if(shCode)return;const code=randCode(16),ref=doc(db,'shares',code);
  try{const s=await getDoc(ref);if(s.exists()){shareNote='Try that again.';draw();return}}catch(e){}
@@ -266,20 +280,22 @@ function joinShare(code){code=String(code||'').toLowerCase().replace(/[^a-z0-9]/
  unlinkJoin();jvCode=code;try{localStorage.setItem(JVK,code)}catch(e){}
  try{localStorage.removeItem(JVC)}catch(e){}
  startJoin()}
-function unlinkJoin(){jvCode='';jvU={};jvOrd=[];jvBase={};jvMt={};jvDel={};jvOrdH='';jvOrdAt=0;jvPrimed=false;jvSeen=false;
+function unlinkJoin(){jvCode='';jvU={};jvOrd=[];jvMt={};jvDocDn={};jvDocDmt={};jvDn={};jvDmt={};jvSeen=false;
  try{localStorage.removeItem(JVK)}catch(e){}try{localStorage.removeItem(JVC)}catch(e){}
  if(shUnsub){shUnsub();shUnsub=null}}
 /*SELF-JOIN RECOVERY: a device that joined its OWN share (own link tapped) heals here. Non-destructive: both copies
  snapshotted first. Restores run ONLY against verified shared-doc deletion history; when the doc is unreachable nothing
  is restored - the device leaves the stuck partner view and reconciliation is deferred (snapshot + pending marker) until a
- later load can verify. Restored items keep their own creation time so the sync merge still arbitrates; the versioned
- owner/shared copy wins every field conflict (no check-merging).*/
+ later load can verify. Items older than the 60-day tombstone horizon are never auto-restored: their deletion history may
+ have expired, so they stay preserved in the recovery snapshot. Restored items keep their own creation time so the sync
+ merge still arbitrates; the versioned owner/shared copy wins every field conflict (no check-merging).*/
 const RPK='listo.recovery.pending.v1';
 function restoreFromJoinCache(su,so,docDel){const del=Object.assign({},SY.del,shareDel),ids=(so||[]).slice(),kept=[];
  Object.keys(su||{}).forEach(k=>{const id=k.slice(2);if(ids.indexOf(id)<0)ids.push(id)});
  ids.forEach(id=>{const it=su['s:'+id];if(!it||!it.id)return;
   if(sum.some(x=>x.id===id))return;
   if(del['s:'+id]!==undefined||(docDel&&docDel['s:'+id]!==undefined))return;
+  if(+it.at&&Date.now()-+it.at>60*864e5)return;
   sum.push(it);kept.push({id:id,at:+it.at||Date.now(),h:hsh(JSON.stringify(it))})});
  if(kept.length){persist();kept.forEach(k=>{SY.base['s:'+k.id]=k.h;SY.mt['s:'+k.id]=k.at;shareBase['s:'+k.id]=k.h;shareMt['s:'+k.id]=k.at});saveSY();shareSySave();
   shareNote=kept.length===1?'Restored 1 item added while viewing the shared list.':'Restored '+kept.length+' items added while viewing the shared list.'}}
@@ -456,7 +472,7 @@ const TITLES={sum:'Sum',components:'Components',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1>'+'</div>';
  const shBanner=(shCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>Shared live</b></div><div class="vt-r"><button class="lnk" data-sh="link" style="padding:6px 4px">Send link</button><button class="lnk" data-sh="end" style="padding:6px 4px">End share</button></div></div><div class="mu">Anyone with the link sees this list and can check items off. Ending the share removes their access. Your list stays with you.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':jvCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>Shared live</b></div><div class="vt-r"><button class="lnk" data-sh="leave" style="padding:6px 4px">Leave</button></div></div><div class="mu">Shared with you by link. Check items on or off - it syncs to everyone who has it. Only the list owner adds, removes, or sorts items.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':'');
  h+=jvCode?'':'<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
- const viewItems=jvCode?jvOrd.map(id=>jvU['s:'+id]).filter(Boolean):sum;
+ const viewItems=jvCode?jvOrd.map(id=>{const x=jvU['s:'+id];return x?Object.assign({},x,{done:jvEffDone(id)}):null}).filter(Boolean):sum;
  if(!viewItems.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>'+(jvCode?'Items the owner adds appear here live.':'Add from your Components.')+'</div>'+shBanner+((shareNote&&!shCode&&!jvCode)?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')}
  else{const svw=jvCode?viewItems:sortView(viewItems,sortS,x=>x.name);h+='<ul id="sumlist">'+svw.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'" data-iid="'+x.id+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(capStrip(x.name))+(sub?'<div class="src">'+capStrip(sub)+'</div>':'')+'</div>'+(jvCode?'':'<button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button>'+(sortS===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':''))+'</li>'}).join('')+'</ul>';h+=shBanner;
   if(!jvCode){if(shOpen)h+='<div class="card p" style="margin-top:14px"><div>Share Sum</div><div class="mu">Send a picture of the list, or share it live so you can both check items off together.</div><div class="row" style="margin-top:10px"><button class="btn sec" data-sh="img" style="flex:1;margin-top:0">Share as image</button><button class="btn sec" data-sh="live" style="flex:1;margin-top:0">'+(shCode?'Send the live link':'Share live')+'</button></div><div class="row" style="margin-top:8px"><button class="btn sec" data-sh="x" style="flex:1;margin-top:0">Cancel</button></div></div>';
@@ -469,7 +485,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1>'+'</div>';
    h+='<div class="card p" style="margin-top:14px"><div>This erases '+sum.length+' items in Sum.</div><div class="mu">Your presets in Components are not touched. This cannot be undone.</div><label class="f">Type CLEAR to confirm</label><input id="clrat" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" value="'+esc(clraTxt)+'"><div class="row" style="margin-top:10px"><button class="btn'+(cok?'':' sec')+'" id="clrago" style="flex:1;margin-top:0;'+(cok?'':'opacity:.4')+'">Erase '+sum.length+' items</button><button class="btn sec" id="clrano" style="flex:1;margin-top:0">Cancel</button></div></div>'}}
  v.innerHTML=h;
  const ns=$('#ns');if(ns){ns.oninput=()=>{nsVal=ns.value};const go=()=>{addToSum(ns.value);ns.value='';nsVal='';draw()};$('#nsb').onclick=go;ns.onkeydown=e=>{if(e.key==='Enter')go()}}
- v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{if(jvCode){const x=jvU['s:'+b.dataset.t];if(x){x.done=!x.done;jvPersist()}draw();return}const x=sum.find(y=>y.id===b.dataset.t);if(x){x.done=!x.done;persist()}draw()});
+ v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{if(jvCode){const id=b.dataset.t;if(!jvU['s:'+id])return;jvDn[id]=!jvEffDone(id);jvDmt[id]=Date.now();jvSave();schedSharePush();draw();return}const x=sum.find(y=>y.id===b.dataset.t);if(x){x.done=!x.done;persist()}draw()});
  v.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{if(jvCode)return;sum=sum.filter(y=>y.id!==b.dataset.x);persist();draw()});
  wireGrips($('#sumlist'),seq=>{if(jvCode)return;const byId={};sum.forEach(x=>byId[x.id]=x);sum=seq.map(id=>byId[id]).filter(Boolean);persist();draw()});
  const cd=$('#clrd');if(cd)cd.onclick=()=>{if(jvCode)return;sum=sum.filter(x=>!x.done);persist();draw()};
@@ -767,7 +783,7 @@ function draw(top){document.querySelectorAll('nav button').forEach(b=>b.classLis
  if(page==='sum')drawSum(v);else if(page==='components')drawComponents(v);else drawSettings(v);
  sortUI();scrollTo(0,y)}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{page=b.dataset.go;note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';bkPend=null;bkNote='';shOpen=false;draw(true)});
-$('#sortb').onclick=()=>{if(page==='sum'){sortS=(sortS+1)%SORTS.length;try{localStorage.setItem('listo.sort.s',String(sortS))}catch(e){}}else if(page==='components'){sortC=(sortC+1)%SORTS_C.length;try{localStorage.setItem('listo.sort.c',String(sortC))}catch(e){}}else return;draw()};
+$('#sortb').onclick=()=>{if(page==='sum'){sortS=(sortS+1)%SORTS.length;try{localStorage.setItem('listo.sort.s',String(sortS))}catch(e){}if(shCode)schedSharePush()}else if(page==='components'){sortC=(sortC+1)%SORTS_C.length;try{localStorage.setItem('listo.sort.c',String(sortC))}catch(e){}}else return;draw()};
 $('#home').onclick=()=>{page='sum';note='';clraOpen=false;clraTxt='';rpOpen=false;rpSel='';bkPend=null;bkNote='';shOpen=false;draw(true)};
 (function boot(){const s=jl(localStorage.getItem(DK));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[]}migrate()})();
 (function capMig(){let ch=false;presets.forEach(p=>{if(!p)return;const n2=pTitle(p.name);if(n2!==p.name){p.name=n2;ch=true}if(p.desc){const d2=capSent(p.desc);if(d2!==p.desc){p.desc=d2;ch=true}}if(p.instr){const i2=capSent(p.instr);if(i2!==p.instr){p.instr=i2;ch=true}}if(Array.isArray(p.items))p.items=p.items.map(x=>{if(typeof x!=='string')return x;const t=capTitle(normName(x));if(t!==x)ch=true;return t})});sum.forEach(x=>{if(!x)return;const n2=capTitle(x.name);if(n2!==x.name){x.name=n2;ch=true}if(Array.isArray(x.src))x.src=x.src.map(s2=>{const t=pTitle(s2);if(t!==s2)ch=true;return t});if(Array.isArray(x.qtys))x.qtys.forEach(c=>{const t=pTitle(c.s);if(t!==c.s){c.s=t;ch=true}})});comps.forEach(c=>{if(c&&c.name){const n2=capTitle(c.name);if(n2!==c.name){c.name=n2;ch=true}}});if(ch)persist()})();
