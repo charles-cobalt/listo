@@ -231,10 +231,10 @@ function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
-  if(!s.exists()){if(jvSeen){note='That shared list ended.';shareNote='';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
+  if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
   jvSeen=true;shareNote='';
   if(s.metadata.hasPendingWrites)return;
-  if(s.data().dead){note='That shared list ended.';shareNote='';unlinkJoin();if(page==='sum')draw();return}
+  if(s.data().dead){shareNote='That shared list ended.';unlinkJoin();if(page==='sum')draw();return}
   const R=decodeShare(s.data());jvStamp(!jvPrimed);jvPrimed=true;
   const L=jvLocalState(),M=merge(L,R);
   if(sigOf(M)!==sigOf(L))shareState(M);
@@ -422,7 +422,7 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>Sum</h1>'+'</div>';
  const shBanner=(shCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>Shared live</b></div><div class="vt-r"><button class="lnk" data-sh="link" style="padding:6px 4px">Send link</button><button class="lnk" data-sh="end" style="padding:6px 4px">End share</button></div></div><div class="mu">Anyone with the link sees this list and can check items off. Ending the share removes their access. Your list stays with you.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':jvCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>Shared live</b></div><div class="vt-r"><button class="lnk" data-sh="leave" style="padding:6px 4px">Leave</button></div></div><div class="mu">Shared with you by link. Checks and new items sync to everyone who has it. Your own lists are untouched.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':'');
  h+='<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  const viewItems=jvCode?jvOrd.map(id=>jvU['s:'+id]).filter(Boolean):sum;
- if(!viewItems.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>'+(jvCode?'Add items above.':'Add from your Components.')+'</div>'+shBanner}
+ if(!viewItems.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>'+(jvCode?'Add items above.':'Add from your Components.')+'</div>'+shBanner+((shareNote&&!shCode&&!jvCode)?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')}
  else{const svw=sortView(viewItems,sortS,x=>x.name);h+='<ul id="sumlist">'+svw.map(x=>{const amt=sumAmt(x),sub=sumSub(x);return '<li class="card'+(x.done?' done':'')+'" data-iid="'+x.id+'"><button class="ck" data-t="'+x.id+'" aria-label="Check">'+IC.chk+'</button><div class="t">'+(amt?esc(amt)+' \u2022 ':'')+esc(capStrip(x.name))+(sub?'<div class="src">'+capStrip(sub)+'</div>':'')+'</div><button class="ic" data-x="'+x.id+'" aria-label="Remove">'+IC.x+'</button>'+(sortS===0?'<button class="ic grip" type="button" aria-label="Drag to reorder">'+IC.grip+'</button>':'')+'</li>'}).join('')+'</ul>';h+=shBanner;
   if(!jvCode){if(shOpen)h+='<div class="card p" style="margin-top:14px"><div>Share Sum</div><div class="mu">Send a picture of the list, or share it live so you can both check items off together.</div><div class="row" style="margin-top:10px"><button class="btn sec" data-sh="img" style="flex:1;margin-top:0">Share as image</button><button class="btn sec" data-sh="live" style="flex:1;margin-top:0">'+(shCode?'Send the live link':'Share live')+'</button></div><div class="row" style="margin-top:8px"><button class="btn sec" data-sh="x" style="flex:1;margin-top:0">Cancel</button></div></div>';
    else h+='<div class="row" style="margin-top:14px"><button class="btn sec" data-sh="open" style="flex:1;margin-top:0">Share</button></div>';
