@@ -228,7 +228,7 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
   if(sigOf(M)!==sigOf(R))schedSharePush(50)},e=>{shareNote='Share sync unavailable: '+e.code;if(page==='sum')draw()})}
 function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  const c=jl(localStorage.getItem(JVC));if(c){jvU=c.u||{};jvOrd=c.ord||[]}jvSeen=!!c;
- if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(e=>{window.__rec='reject:'+(e&&(e.stack||e.message)||e)}).then(()=>{startShare();if(page==='sum')draw()});return}
+ if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(()=>{}).then(()=>{startShare();if(page==='sum')draw()});return}
  jvBase={};Object.keys(jvU).forEach(k=>jvBase[k]=hsh(JSON.stringify(jvU[k])));jvOrdH=hsh(JSON.stringify(jvOrd));
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
@@ -266,18 +266,17 @@ function unlinkJoin(){jvCode='';jvU={};jvOrd=[];jvBase={};jvMt={};jvDel={};jvOrd
  snapshotted first; only items missing from the owner list AND not tombstoned in local OR shared-doc deletion history are
  restored, stamped with their own creation time so the sync merge arbitrates anything the device missed; the versioned
  owner/shared copy wins every field conflict (no check-merging).*/
-async function recoverSelfJoin(){try{window.__rec='start';localStorage.setItem('listo.recovery.'+Date.now(),JSON.stringify({jv:jl(localStorage.getItem(JVC)),sy:jl(localStorage.getItem(SHSY))}))}catch(e){window.__rec='snap-err:'+e}
- let docDel={};try{const s=await Promise.race([getDoc(doc(db,'shares',shCode)),new Promise(r=>setTimeout(()=>r(null),1500))]);window.__rec='doc:'+(s===null?'timeout':'resolved');if(s&&s.exists()&&!s.data().dead)docDel=s.data().del||{}}catch(e){window.__rec='doc-err:'+(e&&(e.code||e.message)||e)}
- const del=Object.assign({},SY.del,shareDel),ids=jvOrd.slice();Object.keys(jvU).forEach(k=>{const id=k.slice(2);if(ids.indexOf(id)<0)ids.push(id)}),kept=[];
+async function recoverSelfJoin(){try{localStorage.setItem('listo.recovery.'+Date.now(),JSON.stringify({jv:jl(localStorage.getItem(JVC)),sy:jl(localStorage.getItem(SHSY))}))}catch(e){}
+ let docDel={};try{const s=await Promise.race([getDoc(doc(db,'shares',shCode)),new Promise(r=>setTimeout(()=>r(null),1500))]);if(s&&s.exists()&&!s.data().dead)docDel=s.data().del||{}}catch(e){}
+ const del=Object.assign({},SY.del,shareDel),ids=jvOrd.slice(),kept=[];
+ Object.keys(jvU).forEach(k=>{const id=k.slice(2);if(ids.indexOf(id)<0)ids.push(id)});
  ids.forEach(id=>{const it=jvU['s:'+id];if(!it||!it.id)return;
   if(sum.some(x=>x.id===id))return;
   if(del['s:'+id]!==undefined||docDel['s:'+id]!==undefined)return;
   sum.push(it);kept.push({id:id,at:+it.at||Date.now(),h:hsh(JSON.stringify(it))})});
- window.__rec='kept:'+kept.length;
  unlinkJoin();
  if(kept.length){persist();kept.forEach(k=>{SY.base['s:'+k.id]=k.h;SY.mt['s:'+k.id]=k.at;shareBase['s:'+k.id]=k.h;shareMt['s:'+k.id]=k.at});saveSY();shareSySave();
-  note=kept.length===1?'Restored 1 item added while viewing the shared list.':'Restored '+kept.length+' items added while viewing the shared list.'}
- window.__rec='done'}
+  note=kept.length===1?'Restored 1 item added while viewing the shared list.':'Restored '+kept.length+' items added while viewing the shared list.'}}
 let shMsg='';
 function shareUrl(code){return location.origin+location.pathname+'#share='+code}
 async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){
