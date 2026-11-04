@@ -94,7 +94,7 @@ import {initializeApp} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-
 import {getAI,getGenerativeModel,GoogleAIBackend} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js";
 import {initializeAppCheck,ReCaptchaEnterpriseProvider} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app-check.js";
 import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,sendEmailVerification,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
-import {getFirestore,doc,onSnapshot,runTransaction,setDoc,getDoc,deleteDoc} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+import {getFirestore,doc,onSnapshot,runTransaction,setDoc,getDoc,getDocFromServer,waitForPendingWrites,deleteDoc} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 const fapp=initializeApp({"apiKey":"AIzaSyCsLY_G-ax8D4dPQQOP7gTl7wjCJ4Pl-zg","authDomain":"listo-a3da9.firebaseapp.com","projectId":"listo-a3da9","storageBucket":"listo-a3da9.firebasestorage.app","messagingSenderId":"813323268597","appId":"1:813323268597:web:92211572fce381649370bc"}),auth=getAuth(fapp),db=getFirestore(fapp);
 initializeAppCheck(fapp,{provider:new ReCaptchaEnterpriseProvider('6Ld86QouAAAAAEdAPuGglhSHXuCIHP_badgZOkkw'),isTokenAutoRefreshEnabled:true});
 const $=s=>document.querySelector(s),TK='listo.theme',DK='listo.data.v1';
@@ -222,8 +222,10 @@ function schedSharePush(d){if(!shCode&&!jvCode)return;clearTimeout(sharePushT);s
 async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&!user)return;
  if(sharePushing){shareAgain=true;return}sharePushing=true;
  try{const ref=doc(db,'shares',code);
-  if(shCode){shareStamp(!sharePrimed);const s=await getDoc(ref);
-   if(!s.exists()){await setDoc(ref,encShare(shareLocalState(),user.uid))}
+  if(shCode){shareStamp(!sharePrimed);const s=await getDocFromServer(ref);
+   if(!s.exists()){
+    if(!sharePrimed){await setDoc(ref,encShare(shareLocalState(),user.uid))}
+    else{shareNote='That shared list is no longer live. Tap Share live to share a fresh link.';unlinkShare();if(page==='sum')draw();sharePushing=false;return}}
    else{const d=s.data();if(d.dead){shareNote='The shared list ended.';unlinkShare();draw();sharePushing=false;return}
    if(d.owner&&d.owner!==user.uid){shareNote='That share belongs to another account. It was unlinked here.';unlinkShare();draw();sharePushing=false;return}
     const R=decodeShare(d);absorbShareChecks(R);shareStamp(false);
@@ -231,7 +233,7 @@ async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&
     if(sigShare(M)!==sigShare(R))await setDoc(ref,encShare(M,user.uid));
     if(sigShare(M)!==sigShare(L)){applyShareToSum(M);if(page==='sum')draw()}}}
   else{const s=await getDoc(ref);
-   if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin();draw()}sharePushing=false;return}
+   if(!s.exists()){if(jvSeen&&!s.metadata.fromCache){shareNote='That shared list ended.';unlinkJoin();draw()}sharePushing=false;return}
    if(s.data().dead){shareNote='That shared list ended.';unlinkJoin();draw();sharePushing=false;return}
    const R=decodeShare(s.data());jvAdopt(R);
    const upd={dn:{},dmt:{}};let any=false;
@@ -246,7 +248,7 @@ function startShare(){shCode=localStorage.getItem(SHK)||'';if(!shCode)return;
  if(shUnsub)shUnsub();const ref=doc(db,'shares',shCode);
  shareSeen=true;
  shUnsub=onSnapshot(ref,s=>{if(!shCode)return;
-  if(!s.exists()){if(shareSeen){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw()}return}
+  if(!s.exists()){if(shareSeen&&!s.metadata.fromCache){shareNote='That shared list is no longer live. Tap Share live to share a fresh link.';unlinkShare();if(page==='sum')draw()}return}
   if(s.metadata.hasPendingWrites)return;
   if(s.data().dead){shareNote='The shared list ended.';unlinkShare();if(page==='sum')draw();return}
   const R=decodeShare(s.data());absorbShareChecks(R);shareStamp(!sharePrimed);sharePrimed=true;
@@ -259,7 +261,8 @@ function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  if(jvCode&&jvCode===shCode){recoverSelfJoin().catch(()=>{try{unlinkJoin()}catch(e){}}).then(()=>{startShare();if(page==='sum')draw()});return}
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
-  if(!s.exists()){if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='Connecting to the shared list\u2026'}if(page==='sum')draw();return}
+  if(!s.exists()){if(s.metadata.fromCache){if(!jvSeen){shareNote='Connecting to the shared list\u2026';if(page==='sum')draw()}return}
+   if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='This shared list is not available. Ask the owner to open Listo and share a fresh link.'}if(page==='sum')draw();return}
   jvSeen=true;shareNote='';
   if(s.metadata.hasPendingWrites)return;
   if(s.data().dead){shareNote='That shared list ended.';unlinkJoin();if(page==='sum')draw();return}
@@ -270,7 +273,18 @@ async function createShare(){if(shCode)return;const code=randCode(16),ref=doc(db
  try{const s=await getDoc(ref);if(s.exists()){shareNote='Try that again.';draw();return}}catch(e){}
  shCode=code;try{localStorage.setItem(SHK,code)}catch(e){}
  shareBase={};shareMt={};shareDel={};shareOrdH='';shareOrdAt=0;sharePrimed=false;shareSeen=false;
- try{shareStamp(true);await setDoc(ref,encShare(shareLocalState(),user.uid));sharePrimed=true;shareSySave()}
+ try{shareStamp(true);
+  /*The write promise pends while offline instead of failing, so wait for the server ack with a timeout: if it is slow,
+   say so and finish setting up when the write lands; only a server-acknowledged share is treated as live.*/
+  let slow=false;
+  const w=setDoc(ref,encShare(shareLocalState(),user.uid)).then(()=>waitForPendingWrites(db));
+  try{await Promise.race([w,new Promise((_,rj)=>setTimeout(()=>rj(new Error('slow')),10000))])}
+  catch(e2){if(!(e2&&e2.message==='slow'))throw e2;slow=true}
+  if(slow){shareNote='Still connecting - the share goes live once you are online. Send the link when it says Shared live.';
+   w.then(()=>{sharePrimed=true;shareSySave();startShare();if(shareNote.indexOf('Still connecting')===0)shareNote='';if(page==='sum')draw()})
+    .catch(()=>{shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();if(page==='sum')draw()});
+   draw();return}
+  sharePrimed=true;shareSySave()}
  catch(e){shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();draw();return}
  startShare()}
 async function endShare(){const code=shCode;if(!code)return false;
@@ -317,11 +331,27 @@ async function recoverPending(){const p=jl(localStorage.getItem(RPK));if(!p||!p.
  restoreFromJoinCache(snap.jv.u||{},snap.jv.ord||[],docDel);if(page==='sum')draw()}
 let shMsg='';
 function shareUrl(code){return location.origin+location.pathname+'#share='+code}
+/*Server truth for a share code: live, dead, missing, or offline/unknown. getDocFromServer bypasses the local cache so
+ an offline cache-miss can never be mistaken for a deleted share. Used before handing a link to anyone and before a
+ fresh Share live tap decides whether the current code is still good.*/
+async function shareServerState(code){try{
+ const s=await Promise.race([getDocFromServer(doc(db,'shares',code)),new Promise((_,rj)=>setTimeout(()=>rj(new Error('tmo')),8000))]);
+ if(!s.exists())return 'missing';
+ return s.data().dead?'dead':'live';
+}catch(e){return 'offline'}}
 async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){
  try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch(e2){return false}}}
-async function shareLink(){const u=shareUrl(shCode);
- if(navigator.share){try{await navigator.share({title:'Listo shared list',text:'Join my live Listo list:',url:u});return}catch(e){if(e&&e.name==='AbortError')return}}
- if(await copyText(u))shareNote='Link copied. Send it to the person you are shopping with.';else shareNote=u;draw()}
+/*Never hand out a link the server cannot serve: the create write can pend offline while the code is already stored,
+ so sending checks the doc first. Ended stays ended; a stale/never-live code is explained, never silently republished.*/
+async function shareLink(){const code=shCode;if(!code)return;
+ shareNote='Checking the share link\u2026';draw();
+ const st=await shareServerState(code);
+ if(st==='live'){shareNote='';const u=shareUrl(code);
+  if(navigator.share){try{await navigator.share({title:'Listo shared list',text:'Join my live Listo list:',url:u});return}catch(e){if(e&&e.name==='AbortError')return}}
+  if(await copyText(u))shareNote='Link copied. Send it to the person you are shopping with.';else shareNote=u;draw();return}
+ if(st==='offline'){shareNote='You seem to be offline. Reconnect, then send the link.';draw();return}
+ if(st==='dead'){unlinkShare();shareNote='That share was ended. Tap Share live to start a fresh one.';draw();return}
+ shareNote='That share link is not live. Tap Share live to create a fresh one.';draw()}
 function stashOwner(o){localStorage.setItem(OWNP+(o||'anon'),JSON.stringify({c:comps,p:presets,s:sum,sy:SY}))}
 function loadOwner(o){const s=jl(localStorage.getItem(OWNP+(o||'anon')));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[];SY=Object.assign(freshSY(),s.sy||{})}else{comps=[];presets=[];sum=[];SY=freshSY()}
  saveData();saveSY();migrate()}
@@ -499,7 +529,12 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>The List</h1>'+'</div>';
   else if(a==='x'){shOpen=false;draw()}
   else if(a==='img'||a==='imgbox'){shOpen=false;shMsg='Preparing the image\u2026';draw();shareSumImg(a==='imgbox')}
   else if(a==='live'){shOpen=false;shMsg='';shareNote='';
-   if(shCode){shareLink();return}
+   if(shCode){shMsg='Checking the share\u2026';draw();const st=await shareServerState(shCode);shMsg='';
+    if(st==='live'){shareLink();return}
+    if(st==='offline'){shMsg='You seem to be offline. Reconnect, then tap Share live.';draw();return}
+    /*Ended or never-live code: drop it and create a fresh share below - this tap is the explicit fresh-share action.
+     A still-queued create for the old code may land later; that doc is orphaned but harmless, and its link was never sent.*/
+    unlinkShare()}
    if(!user){shMsg='Sign in on Settings first, then tap Share live again.';draw();return}
    shMsg='Creating the shared list\u2026';draw();await createShare();shMsg='';draw()}
   else if(a==='link'){shareLink()}
