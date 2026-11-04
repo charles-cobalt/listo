@@ -351,6 +351,7 @@ async function shareLink(){const code=shCode;if(!code)return;
   if(await copyText(u))shareNote='Link copied. Send it to the person you are shopping with.';else shareNote=u;draw();return}
  if(st==='offline'){shareNote='You seem to be offline. Reconnect, then send the link.';draw();return}
  if(st==='dead'){unlinkShare();shareNote='That share was ended. Tap Share live to start a fresh one.';draw();return}
+ if(!sharePrimed){shareNote='Still connecting - the share goes live once you are online. Send the link when it says Shared live.';draw();return}
  shareNote='That share link is not live. Tap Share live to create a fresh one.';draw()}
 function stashOwner(o){localStorage.setItem(OWNP+(o||'anon'),JSON.stringify({c:comps,p:presets,s:sum,sy:SY}))}
 function loadOwner(o){const s=jl(localStorage.getItem(OWNP+(o||'anon')));if(s){comps=s.c||[];presets=s.p||[];sum=s.s||[];SY=Object.assign(freshSY(),s.sy||{})}else{comps=[];presets=[];sum=[];SY=freshSY()}
@@ -504,7 +505,7 @@ const wireGrips=(ul,done)=>{if(!ul)return;ul.querySelectorAll('.grip').forEach(g
 /*DRAW*/
 const TITLES={sum:'The List',components:'The Presets',settings:'Settings'};
 function drawSum(v){let h='<div class="twrap">'+WM+'<h1>The List</h1>'+'</div>';
- const shBanner=(shCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>Shared live</b></div><div class="vt-r"><button class="lnk" data-sh="link" style="padding:6px 4px">Send link</button><button class="lnk" data-sh="end" style="padding:6px 4px">End share</button></div></div><div class="mu">Anyone with the link sees this list and can check items off. Ending the share removes their access. Your list stays with you.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':jvCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>Shared live</b></div><div class="vt-r"><button class="lnk" data-sh="leave" style="padding:6px 4px">Leave</button></div></div><div class="mu">Shared with you by link. Check items on or off - it syncs to everyone who has it. Only the list owner adds, removes, or sorts items.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':'');
+ const shBanner=(shCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>'+(sharePrimed?'Shared live':'Share pending')+'</b></div><div class="vt-r"><button class="lnk" data-sh="link" style="padding:6px 4px">Send link</button><button class="lnk" data-sh="end" style="padding:6px 4px">End share</button></div></div><div class="mu">Anyone with the link sees this list and can check items off. Ending the share removes their access. Your list stays with you.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':jvCode?'<div class="card p" style="margin-top:14px"><div class="vt"><div class="t"><b>Shared live</b></div><div class="vt-r"><button class="lnk" data-sh="leave" style="padding:6px 4px">Leave</button></div></div><div class="mu">Shared with you by link. Check items on or off - it syncs to everyone who has it. Only the list owner adds, removes, or sorts items.</div>'+(shareNote?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')+'</div>':'');
  h+=jvCode?'':'<h2>Add</h2><div class="add"><input id="ns" autocapitalize="sentences" spellcheck="false" value="'+esc(nsVal)+'"><button class="ic" id="nsb" aria-label="Add">'+IC.plus+'</button></div><div class="msg">'+esc(note)+'</div>';
  const viewItems=jvCode?jvOrd.map(id=>{const x=jvU['s:'+id];return x?Object.assign({},x,{done:jvEffDone(id)}):null}).filter(Boolean):sum;
  if(!viewItems.length){clraOpen=false;clraTxt='';rpOpen=false;rpSel='';h+='<div class="empty">Nothing here yet.<br>'+(jvCode?'Items the owner adds appear here live.':'Add from The Presets.')+'</div>'+shBanner+((shareNote&&!shCode&&!jvCode)?'<div class="msg" style="margin:6px 0 0">'+esc(shareNote)+'</div>':'')}
@@ -532,8 +533,10 @@ function drawSum(v){let h='<div class="twrap">'+WM+'<h1>The List</h1>'+'</div>';
    if(shCode){shMsg='Checking the share\u2026';draw();const st=await shareServerState(shCode);shMsg='';
     if(st==='live'){shareLink();return}
     if(st==='offline'){shMsg='You seem to be offline. Reconnect, then tap Share live.';draw();return}
-    /*Ended or never-live code: drop it and create a fresh share below - this tap is the explicit fresh-share action.
-     A still-queued create for the old code may land later; that doc is orphaned but harmless, and its link was never sent.*/
+    if(st==='missing'&&!sharePrimed){shareNote='Still connecting - the share goes live once you are online. Send the link when it says Shared live.';draw();return}
+    /*Ended or never-live code (it had its chance and is confirmed not live): drop it and create a fresh share below -
+     this tap is the explicit fresh-share action. A still-queued write for the old code may land later; that doc is
+     orphaned but harmless, and its link was never sent.*/
     unlinkShare()}
    if(!user){shMsg='Sign in on Settings first, then tap Share live again.';draw();return}
    shMsg='Creating the shared list\u2026';draw();await createShare();shMsg='';draw()}
