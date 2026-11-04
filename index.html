@@ -281,7 +281,7 @@ async function createShare(){if(shCode)return;const code=randCode(16),ref=doc(db
   try{await Promise.race([w,new Promise((_,rj)=>setTimeout(()=>rj(new Error('slow')),10000))])}
   catch(e2){if(!(e2&&e2.message==='slow'))throw e2;slow=true}
   if(slow){shareNote='Still connecting - the share goes live once you are online. Send the link when it says Shared live.';
-   w.then(()=>{sharePrimed=true;shareSySave();startShare();if(shareNote.indexOf('Still connecting')===0)shareNote='';if(page==='sum')draw()})
+   w.then(()=>{sharePrimed=true;shareSySave();startShare();if(shareNote.indexOf('Still connecting')===0||shareNote.indexOf('You seem to be offline')===0)shareNote='';if(page==='sum')draw()})
     .catch(()=>{shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();if(page==='sum')draw()});
    draw();return}
   sharePrimed=true;shareSySave()}
