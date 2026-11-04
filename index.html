@@ -223,9 +223,7 @@ async function sharePush(){const code=shCode||jvCode;if(!code)return;if(shCode&&
  if(sharePushing){shareAgain=true;return}sharePushing=true;
  try{const ref=doc(db,'shares',code);
   if(shCode){shareStamp(!sharePrimed);const s=await getDocFromServer(ref);
-   if(!s.exists()){
-    if(!sharePrimed){await setDoc(ref,encShare(shareLocalState(),user.uid))}
-    else{shareNote='That shared list is no longer live. Tap Share live to share a fresh link.';unlinkShare();if(page==='sum')draw();sharePushing=false;return}}
+   if(!s.exists()){shareNote='That shared list is no longer live. Tap Share live to share a fresh link.';unlinkShare();if(page==='sum')draw();sharePushing=false;return}
    else{const d=s.data();if(d.dead){shareNote='The shared list ended.';unlinkShare();draw();sharePushing=false;return}
    if(d.owner&&d.owner!==user.uid){shareNote='That share belongs to another account. It was unlinked here.';unlinkShare();draw();sharePushing=false;return}
     const R=decodeShare(d);absorbShareChecks(R);shareStamp(false);
@@ -262,7 +260,7 @@ function startJoin(){jvCode=localStorage.getItem(JVK)||'';if(!jvCode)return;
  if(shUnsub)shUnsub();const ref=doc(db,'shares',jvCode);
  shUnsub=onSnapshot(ref,s=>{if(!jvCode)return;
   if(!s.exists()){if(s.metadata.fromCache){if(!jvSeen){shareNote='Connecting to the shared list\u2026';if(page==='sum')draw()}return}
-   if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='This shared list is not available. Ask the owner to open Listo and share a fresh link.'}if(page==='sum')draw();return}
+   if(jvSeen){shareNote='That shared list ended.';unlinkJoin()}else{shareNote='This shared list is not available. Ask the owner to open Listo and share a fresh link.';unlinkJoin()}if(page==='sum')draw();return}
   jvSeen=true;shareNote='';
   if(s.metadata.hasPendingWrites)return;
   if(s.data().dead){shareNote='That shared list ended.';unlinkJoin();if(page==='sum')draw();return}
@@ -281,8 +279,8 @@ async function createShare(){if(shCode)return;const code=randCode(16),ref=doc(db
   try{await Promise.race([w,new Promise((_,rj)=>setTimeout(()=>rj(new Error('slow')),10000))])}
   catch(e2){if(!(e2&&e2.message==='slow'))throw e2;slow=true}
   if(slow){shareNote='Still connecting - the share goes live once you are online. Send the link when it says Shared live.';
-   w.then(()=>{sharePrimed=true;shareSySave();startShare();if(shareNote.indexOf('Still connecting')===0||shareNote.indexOf('You seem to be offline')===0)shareNote='';if(page==='sum')draw()})
-    .catch(()=>{shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();if(page==='sum')draw()});
+   w.then(()=>{if(shCode!==code)return;sharePrimed=true;shareSySave();startShare();if(shareNote.indexOf('Still connecting')===0||shareNote.indexOf('You seem to be offline')===0)shareNote='';if(page==='sum')draw()})
+    .catch(()=>{if(shCode!==code)return;shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();if(page==='sum')draw()});
    draw();return}
   sharePrimed=true;shareSySave()}
  catch(e){shareNote='Could not create the shared list. Check your connection and try again.';unlinkShare();draw();return}
