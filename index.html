@@ -189,7 +189,7 @@ const sigShare=M=>hsh(canon([M.u,M.mt,M.del,M.ord,M.ordAt,M.dn||{},M.dmt||{},M.d
 const chkTsOk=ts=>typeof ts==='number'&&isFinite(ts)&&ts>0&&ts<Date.now()+900000;
 /*Owner absorbs recipient check toggles into the authoritative items; the toggle override is then pruned by shareStamp.*/
 function absorbShareChecks(R){let ch=false;Object.keys(R.dn||{}).forEach(id=>{const it=sum.find(x=>x.id===id);if(!it)return;
- if(chkTsOk(R.dmt[id])&&R.dmt[id]>(shareMt['s:'+id]||0)&&it.done!==!!R.dn[id]){it.done=!!R.dn[id];ch=true}});if(ch)saveData();return ch}
+ if(chkTsOk(R.dmt[id])&&R.dmt[id]>(shareMt['s:'+id]||0)&&it.done!==!!R.dn[id]){it.done=!!R.dn[id];ch=true}});if(ch){saveData();if(page==='sum')draw()}return ch}
 function shareStamp(first){const u={},now=Date.now();sum.forEach(x=>{u['s:'+x.id]=x});
  Object.keys(u).forEach(k=>{const h=hsh(JSON.stringify(u[k]));if(shareBase[k]!==h){shareBase[k]=h;shareMt[k]=first?0:now;delete shareDel[k]}});
  Object.keys(shareBase).forEach(k=>{if(!(k in u)){delete shareBase[k];delete shareMt[k];shareDel[k]=now}});
