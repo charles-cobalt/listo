@@ -432,7 +432,7 @@ function rpHtml(cn){if(!rpSel)return '<div class="card p" style="margin-top:14px
  const c=cn.find(x=>x.key===rpSel);if(!c){rpSel='';return ''}
  return '<div class="card p" style="margin-top:14px"><div>Remove '+esc(pShow(c.name))+' from The List?</div><div class="mu">'+(c.only?'This removes the '+c.only+(c.only===1?' line':' lines')+' that only '+esc(pShow(c.name))+' added. ':'')+(c.shared?c.shared+' shared '+(c.shared===1?'line stays':'lines stay')+' for your other presets, without the '+esc(pShow(c.name))+' label. ':'')+'The saved preset stays in The Presets.</div><div class="row" style="margin-top:10px"><button class="btn" id="rpgo" style="flex:1;margin-top:0">Remove '+esc(pShow(c.name))+'</button><button class="btn sec" id="rpno" style="flex:1;margin-top:0">Cancel</button></div></div>'}
 /*IMPORT*/
-const AIM='gemini-3.5-flash';let _aiM=null;
+const AIM='gemini-3.5-flash';let _aiM=null,impGen=0;
 const aiModel=()=>{if(!_aiM)_aiM=getGenerativeModel(getAI(fapp,{backend:new GoogleAIBackend()}),{model:AIM,generationConfig:{responseMimeType:'application/json'}});return _aiM};
 const b64File=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(new Error('read'));r.readAsDataURL(f)});
 const imgPart=async f=>{const bmp=await createImageBitmap(f);const s=Math.min(1,1568/Math.max(bmp.width,bmp.height));
@@ -443,19 +443,23 @@ const IMP_PROMPT='You are reading a photo, scan, PDF or text note that contains 
 async function detect(parts){const r=await aiModel().generateContent([{text:IMP_PROMPT},...parts]);
  const t=r.response.text();const d=JSON.parse(String(t).replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,''));
  return d&&typeof d==='object'?d:{}}
-function importErr(e){const m=String(e&&(e.code||e.message||e)||'');
- if(/quota|429|rate|exhausted/i.test(m))return 'The free detection limit was reached for now. It resets daily - try again later.';
- if(/unavailable|network|failed to fetch|offline/i.test(m))return 'Could not reach the detection service. Check your connection and try again.';
- if(/permission|403|app check|appcheck|config not found/i.test(m))return 'Detection is not fully set up yet. Try again in a few minutes.';
+function importErr(e){const m=[[e&&e.code,e&&e.message,e&&e.cause&&e.cause.code,e&&e.cause&&e.cause.message].filter(Boolean).join(' '),(()=>{try{return JSON.stringify(e&&e.customDetails||'')}catch(_){return ''}})()].join(' ')||String(e||'');
+ if(/quota|429|rate.?limit|exhausted/i.test(m))return 'The free detection limit was reached for now. It resets daily - try again later.';
+ if(/permission|403|app.?check|config not found|401|unauthenticated/i.test(m))return 'Detection is not fully set up yet. Try again in a few minutes.';
+ if(/timeout|timed out|deadline/i.test(m))return 'Detection took too long. Check your connection and try again.';
+ if(/unavailable|network|failed to fetch|offline|fetch-error|abort/i.test(m))return 'Could not reach the detection service. Check your connection and try again.';
  return 'Detection did not work on that file. Try a clearer photo or another file.'}
-async function importFile(f){if(imp)return;imp={stage:'Reading '+(f.name||'photo')+'\u2026',sub:f.size>3000000?'Large file - this can take a little longer.':''};note='';draw();
+async function importFile(f){if(imp)return;const gen=++impGen;imp={stage:'Reading '+(f.name||'photo')+'\u2026',sub:f.size>3000000?'Large file - this can take a little longer.':''};note='';draw();
  try{let parts=[];const nm=String(f.name||'').toLowerCase();
   if(/^image\//.test(f.type)||/\.(png|jpe?g|webp|gif|heic|heif)$/.test(nm))parts=[await imgPart(f)];
   else if(f.type==='application/pdf'||/\.pdf$/.test(nm))parts=[{inlineData:{mimeType:'application/pdf',data:await b64File(f)}}];
   else{const t=(await f.text()).slice(0,20000);if(!t.trim())throw new Error('empty');parts=[{text:'FILE CONTENTS:\n'+t}]}
+  if(gen!==impGen)return;
   imp={stage:'Detecting the list\u2026',sub:'Usually a few seconds.'};draw();
-  openImportDraft(await detect(parts));
- }catch(e){console.warn('Listo import error:',e&&(e.code||''),e&&(e.message||e));imp=null;note=importErr(e);draw()}}
+  const d=await Promise.race([detect(parts),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout: detection took over 30 seconds')),30000))]);
+  if(gen!==impGen)return;
+  openImportDraft(d);
+ }catch(e){if(gen!==impGen)return;console.warn('Listo import error:',e&&(e.code||''),e&&(e.message||e));imp=null;note=importErr(e);draw()}}
 function openImportDraft(d){const seen=new Set(),items=[],qty={};
  (Array.isArray(d.items)?d.items:[]).forEach(it=>{const n=normName(it&&it.name);if(!n)return;const k=n.toLowerCase();if(seen.has(k))return;seen.add(k);items.push(n);
   if(typeof it.quantity==='number'&&isFinite(it.quantity)&&it.quantity>0)qty[k]={q:Math.round(it.quantity*1000)/1000,u:normName(it.unit)}});
@@ -549,7 +553,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>The Presets</h1><
  const pHit=p=>{if(!cq2)return true;return capStrip([p.name,p.desc||'',p.instr||''].concat(presetItems(p).map(itName)).join('\n')).replace(/\*/g,'').toLowerCase().indexOf(cq2)>=0};
  if(!edP&&presets.length)h+='<div class="add" style="margin:2px 0 6px"><input id="cq" placeholder="Search presets" autocomplete="off" autocapitalize="off" spellcheck="false" value="'+esc(cq)+'">'+(cq?'<button class="ic" id="cqx" aria-label="Clear search">'+IC.x+'</button>':'')+'</div>';
  if(!edP){h+='<h2>Import</h2>';
-  if(imp)h+='<div class="card p" style="margin-bottom:24px"><div>'+esc(imp.stage)+'</div>'+(imp.sub?'<div class="mu" style="margin-top:4px">'+esc(imp.sub)+'</div>':'')+'</div>';
+  if(imp)h+='<div class="card p" style="margin-bottom:24px"><div>'+esc(imp.stage)+'</div>'+(imp.sub?'<div class="mu" style="margin-top:4px">'+esc(imp.sub)+'</div>':'')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="impcancel" style="flex:1;margin-top:0">Cancel</button></div></div>';
   else h+='<div style="margin:0 0 24px"><button class="btn sec" id="impb" style="margin-top:0">Import from photo or file</button><div class="mu" style="margin:8px 2px 0">Take a photo or choose a photo, PDF or text file. Listo reads it into a draft you check before saving.</div></div>'}
  h+='<input type="file" id="impf" accept="image/*,.heic,.heif,application/pdf,.pdf,text/plain,text/markdown,text/csv,.txt,.md,.csv" style="display:none">';
  const act=presets.filter(p=>!p.arch&&pHit(p)),arc=presets.filter(p=>p.arch&&pHit(p));
@@ -597,7 +601,7 @@ function drawComponents(v){let h='<div class="twrap">'+WM+'<h1>The Presets</h1><
   +(pcAsk?'<div style="margin-top:12px">Discard your unsaved changes?</div><div class="row" style="margin-top:10px"><button class="btn sec" id="pck" style="flex:1;margin-top:0">Keep editing</button><button class="btn sec" id="pcd" style="flex:1;margin-top:0">Discard changes</button></div>':'<div class="row" style="margin-top:12px"><button class="btn" id="ps" style="margin-top:0">Save</button><button class="btn sec" id="pc" style="margin-top:0">Cancel</button></div>')+'</div>'}
  v.innerHTML=h;
  const imf=$('#impf');if(imf)imf.onchange=()=>{const f=imf.files&&imf.files[0];imf.value='';if(f)importFile(f)};
- const imb=$('#impb');if(imb)imb.onclick=()=>{const f2=$('#impf');if(f2)f2.click()};
+ const imb=$('#impb');if(imb)imb.onclick=()=>{const f2=$('#impf');if(f2)f2.click()};const impc=$('#impcancel');if(impc)impc.onclick=()=>{impGen++;imp=null;note='Import canceled.';draw()};
  const cqi=$('#cq');if(cqi){cqi.oninput=()=>{const pos=cqi.selectionStart||0;cq=cqi.value;draw();const n2=$('#cq');if(n2){n2.focus();try{n2.setSelectionRange(pos,pos)}catch(e){}}};
   const cqx=$('#cqx');if(cqx)cqx.onclick=()=>{cq='';draw();const n3=$('#cq');if(n3)n3.focus()}}
  v.querySelectorAll('[data-np]').forEach(b=>b.onclick=()=>{edP={id:'',name:'',items:[],type:b.dataset.np,desc:'',instr:'',mult:1,serv:1,dserv:1,servSet:true,qty:{}};piVal='';piQ='';piU='';note='';pcAsk=false;pxId='';pxTxt='';draw();const pe=$('#pedit');if(pe)pe.scrollIntoView()});
@@ -870,7 +874,7 @@ function resetHtml(){const ok=rchk&&rtxt.trim().toUpperCase()==='RESET';
  return h+(rnote?'<div class="msg" style="margin:10px 0 0">'+esc(rnote)+'</div>':'')+'</div>'}
 function drawSettings(v){const th=theme();let acct;
  if(user){acct='<div class="card p"><div>'+esc(user.email)+'</div><div class="mu" style="margin-top:4px">'+(user.emailVerified?'Email verified. Synced across your devices.':'Email not verified yet. Check your inbox. Synced across your devices.')+(syncAt?' Last synced '+new Date(syncAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'.':'')+'</div>'+(user.emailVerified?'':'<button class="btn sec" id="resend" style="width:100%;box-sizing:border-box">Resend verification email</button><button class="btn sec" id="chk" style="width:100%;box-sizing:border-box">I verified my email</button>')+'<div class="row" style="margin-top:10px"><button class="btn sec" id="syncnow" style="flex:1;margin-top:0">Sync now</button><button class="btn sec" id="out" style="flex:1;margin-top:0">Sign out</button></div></div>'}
- else{acct='<div class="card p"><div class="mu" style="margin-bottom:4px">Signed out. Your lists are saved on this device only.</div><label class="f">Email</label><input id="em" type="email" autocomplete="email" autocapitalize="off" spellcheck="false"><label class="f">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="row" style="margin-top:10px"><button class="btn go" data-a="in" style="margin-top:0">Sign in</button><button class="btn sec go" data-a="up" style="margin-top:0">Create account</button></div><div class="row" style="margin-top:10px"><button class="btn sec go" data-a="reset" style="margin-top:0">Forgot password</button></div></div>'}
+ else{acct='<div class="card p"><div class="mu" style="margin-bottom:4px">Signed out. Your lists are saved on this device only.</div><label class="f">Email</label><input id="em" type="email" autocomplete="email" autocapitalize="off" spellcheck="false"><label class="f">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="mu" style="margin-top:4px">Passwords need at least 6 characters.</div><div class="row" style="margin-top:10px"><button class="btn go" data-a="in" style="margin-top:0">Sign in</button><button class="btn sec go" data-a="up" style="margin-top:0">Create account</button></div><div class="row" style="margin-top:10px"><button class="btn sec go" data-a="reset" style="margin-top:0">Forgot password</button></div></div>'}
  v.innerHTML='<div class="twrap">'+WM+'<h1>Settings</h1></div><h2>Theme</h2><div class="row">'+['night','day','auto'].map(k=>'<button class="chip '+(th===k?'on':'')+'" data-th="'+k+'">'+k[0].toUpperCase()+k.slice(1)+'</button>').join('')+'</div><h2>Account</h2>'+acct+'<div class="msg" id="msg">'+esc(msg)+'</div>'+exHtml()+backupHtml()+resetHtml();
  exBind(v);
  v.querySelectorAll('[data-th]').forEach(b=>b.onclick=()=>{localStorage.setItem(TK,b.dataset.th);applyTheme();if(user){if(SY.synced)stamp();schedPush()}draw()});
@@ -882,7 +886,7 @@ function drawSettings(v){const th=theme();let acct;
  const ck=$('#chk');if(ck)ck.onclick=async()=>{try{await user.reload();msg=auth.currentUser.emailVerified?'Email verified.':'Not verified yet.'}catch(e){msg='Try again in a minute.'}draw()};
  const sn=$('#syncnow');if(sn)sn.onclick=()=>{msg='Syncing...';draw();schedPush(0)};
  const rs=$('#resend');if(rs)rs.onclick=async()=>{try{await sendEmailVerification(user);msg='Verification email sent.'}catch(e){msg='Try again in a minute.'}draw()};
- const be=$('#b-exp');if(be)be.onclick=()=>{bkPend=null;dlFile('listo-backup_'+new Date().toISOString().slice(0,10)+'.json',backupFile(),'application/json');bkNote='Backup file downloaded.';draw()};
+ const locDate=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};const be=$('#b-exp');if(be)be.onclick=()=>{bkPend=null;dlFile('listo-backup_'+locDate()+'.json',backupFile(),'application/json');bkNote='Backup file downloaded.';draw()};
  const bi=$('#b-imp');if(bi)bi.onclick=()=>$('#b-file').click();
  const bf=$('#b-file');if(bf)bf.onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;bkPend=null;try{const j=JSON.parse(await f.text());
   if(j&&j.app==='listo'&&j.format==='listo-backup'&&Array.isArray(j.presets)&&Array.isArray(j.sum)){
@@ -894,13 +898,13 @@ function drawSettings(v){const th=theme();let acct;
   if(q.th&&['night','day','auto'].includes(q.th)){localStorage.setItem(TK,q.th);applyTheme()}
   try{await persist();bkPend=null;bkNote='Saved entries loaded. Drafts and held versions are kept.';migrate();}catch(e){bkNote='Not saved. The import is still pending. Keep this tab open.';}draw()};
  const bn=$('#b-no');if(bn)bn.onclick=()=>{bkPend=null;bkNote='';draw()};
- const bz=$('#b-zip');if(bz)bz.onclick=()=>{const d=new Date().toISOString().slice(0,10);
+ const bz=$('#b-zip');if(bz)bz.onclick=()=>{const d=locDate();
   dlFile('listo-all-files_'+d+'.zip',mkZip([['LISTO protected copies '+d+'.json',JSON.stringify(SP.exportCopies(),null,2)],['listo-backup_'+d+'.json',backupFile()],['listo-lists_'+d+'.pdf',mkListsPdf()],['listo-lists_'+d+'.txt',listsTxt()],['listo-lists_'+d+'.csv',listsCsv()]]),'application/zip');
   bkNote='All files downloaded as one zip.';draw()};
  const ro=$('#r-open');if(ro)ro.onclick=()=>{rstOpen=true;rchk=false;rtxt='';rnote='';draw()};
  const rn=$('#r-no');if(rn)rn.onclick=()=>{rstOpen=false;rchk=false;rtxt='';rnote='';draw()};
  const rc=$('#r-chk');if(rc)rc.onclick=()=>{rchk=!rchk;draw()};
- const rb=$('#r-bk');if(rb)rb.onclick=()=>{dlFile('listo-backup_'+new Date().toISOString().slice(0,10)+'.json',backupFile(),'application/json');rnote='Backup file downloaded.';draw()};
+ const rb=$('#r-bk');if(rb)rb.onclick=()=>{dlFile('listo-backup_'+locDate()+'.json',backupFile(),'application/json');rnote='Backup file downloaded.';draw()};
  const rt=$('#rtxt');if(rt)rt.oninput=()=>{rtxt=rt.value;const ok=rchk&&rtxt.trim().toUpperCase()==='RESET',b=$('#rgo');if(b){b.classList.toggle('sec',!ok);b.style.opacity=ok?'':'.4'}};
  const rg=$('#rgo');if(rg)rg.onclick=async()=>{if(rchk&&rtxt.trim().toUpperCase()==='RESET'){comps=[];presets=[];sum=[];try{await persist();localStorage.setItem(RSK,String(Date.now()));if(user)schedPush(0);}catch(e){rnote='Reset was not saved. Keep this tab open.';draw();return;}rstOpen=false;rchk=false;rtxt='';rnote='Reset applied where no review was needed. Drafts and held versions are kept.'}else rnote='Tick the box and type RESET first.';draw()}}
 const drawKeep=()=>{const a=document.activeElement;
@@ -1017,5 +1021,5 @@ let spAuthQueue=Promise.resolve();onAuthStateChanged(auth,u=>{spAuthQueue=spAuth
  spEditBase=null;edP=null;startShare();draw()}catch(e){spReady=false;viewRoot.innerHTML='<div class="card p" role="alert">Could not open account storage. No account is editable. Reload to try again.</div>';document.querySelectorAll('button,input,select,textarea').forEach(b=>b.disabled=true);document.body.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();},true);}finally{root.removeAttribute('inert');}}).catch(e=>{spReady=false;SP.error="Account transition did not finish. Reload before editing.";SP.render();});return spAuthQueue;});
 (function shareBoot(){const m=/^#share=([a-z0-9]+)/i.exec(location.hash||'');if(m){joinShare(m[1]);page='sum'}})();
 startShare();startJoin();recoverPending();
-applyTheme();draw();
+applyTheme();draw();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>
